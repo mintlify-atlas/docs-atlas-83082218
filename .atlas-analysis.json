@@ -1,0 +1,80 @@
+{
+  "projectType": "frontend",
+  "projectName": "Portal Self-Service",
+  "projectDescription": "A React-based self-service portal for employee management with Azure AD authentication support",
+  "theme": "almond",
+  "primaryColor": "#f1d262",
+  "lightColor": "#7c6c34",
+  "darkColor": "#19160b",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/authentication",
+              "features/employee-profile",
+              "features/protected-routes"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/azure-ad",
+              "configuration/environment",
+              "configuration/routing"
+            ]
+          },
+          {
+            "group": "Components",
+            "pages": [
+              "components/login-page",
+              "components/home-page",
+              "components/self-service",
+              "components/login-microsoft"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Deployment",
+        "groups": [
+          {
+            "group": "Setup",
+            "pages": [
+              "deployment/development",
+              "deployment/production",
+              "deployment/troubleshooting"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Azure AD/MSAL authentication integration",
+    "Protected route navigation with authentication guards",
+    "Employee profile management and display",
+    "Mock authentication for development testing",
+    "React Router-based SPA architecture",
+    "Tailwind CSS styling with custom theme"
+  ],
+  "publicApiSurface": [
+    "LoginPage - Authentication entry point",
+    "HomePage - Protected dashboard view",
+    "SelfService - Employee profile component",
+    "LoginMicrosoft - Azure AD authentication component",
+    "ProtectedRoute - Route guard wrapper",
+    "msalConfig - Azure AD configuration",
+    "loginRequest - Authentication scope configuration"
+  ]
+}
