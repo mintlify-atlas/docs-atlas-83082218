@@ -1,0 +1,574 @@
+---
+title: SelfService
+description: User profile display component with Azure AD integration for employee self-service portal
+---
+
+## Overview
+
+The `SelfService` component displays authenticated employee information by fetching data from the backend using the user's Azure AD email. It integrates with Microsoft Authentication Library (MSAL) to retrieve the logged-in user's identity and displays their complete profile information.
+
+<Info>
+This component is designed for production use with Azure AD authentication. It automatically retrieves user data based on the authenticated Microsoft account.
+</Info>
+
+## Component Location
+
+```
+src/componentes/SelfService.jsx
+```
+
+## Full Source Code
+
+```jsx
+import { useMsal } from "@azure/msal-react";
+import { useEffect, useState } from "react";
+
+function SelfService() {
+  const { accounts } = useMsal();
+  const [userData, setUserData] = useState(null);
+
+  useEffect(() => {
+    if (accounts.length > 0) {
+      const userEmail = accounts[0].username;
+
+      fetch(`http://localhost:5000/api/empleados/email/${userEmail}`)
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`Error HTTP: ${res.status}`);
+          }
+          return res.json();
+        })
+        .then((data) => setUserData(data))
+        .catch((err) => {
+          console.error("Error al obtener datos del usuario:", err);
+          setUserData({ error: "No se pudo cargar la información." });
+        });
+    }
+  }, [accounts]);
+
+  if (!userData) {
+    return (
+      <div className="mt-10 text-center text-gray-600">
+        Cargando información...
+      </div>
+    );
+  }
+
+  if (userData.error) {
+    return (
+      <div className="mt-10 text-center text-red-600">
+        {userData.error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-lg p-6 mx-auto mt-10 bg-white shadow-md rounded-xl">
+      <h2 className="mb-4 text-2xl font-bold text-center">Mi Perfil</h2>
+      <div className="space-y-2">
+        <p><strong>Nombre:</strong> {userData.nombre}</p>
+        <p><strong>Correo:</strong> {userData.correo}</p>
+        <p><strong>DNI:</strong> {userData.DNI}</p>
+        <p><strong>Teléfono:</strong> {userData.telefono}</p>
+        <p><strong>Clínica:</strong> {userData.clinica}</p>
+        <p><strong>Estado:</strong> {userData.estado}</p>
+        <p>
+          <strong>Fecha de ingreso:</strong>{" "}
+          {new Date(userData.fecha_ingreso).toLocaleDateString()}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default SelfService;
+```
+
+## Component Features
+
+### Azure AD Integration
+
+Utilizes MSAL React hooks to access authenticated user accounts and retrieve the username (email) for backend queries.
+
+### Automatic Data Fetching
+
+Automatically fetches employee data when an authenticated account is detected.
+
+### Loading States
+
+Displays appropriate UI for loading, error, and success states.
+
+### Responsive Profile Display
+
+Shows comprehensive employee information in a clean, card-based layout using Tailwind CSS.
+
+## Hooks Used
+
+<ParamField path="useMsal" type="@azure/msal-react Hook">
+  Provides access to MSAL context, including authenticated accounts.
+  
+  **Returns:** Object with `accounts` array containing authenticated user accounts
+</ParamField>
+
+<ParamField path="useState" type="React Hook">
+  Manages the `userData` state for storing employee information from the backend.
+  
+  **Initial State:** `null`
+  
+  **State Values:**
+  - `null`: Initial/loading state
+  - `{ error: string }`: Error state
+  - `Employee Object`: Success state with user data
+</ParamField>
+
+<ParamField path="useEffect" type="React Hook">
+  Fetches employee data when accounts array changes.
+  
+  **Dependencies:** `[accounts]`
+  
+  **Trigger:** Runs when MSAL accounts are loaded or updated
+</ParamField>
+
+## State Management
+
+### Component State
+
+```javascript
+const [userData, setUserData] = useState(null);
+```
+
+**State Transitions:**
+
+<Tabs>
+  <Tab title="Initial">
+    ```javascript
+    userData = null
+    ```
+    Displays loading message
+  </Tab>
+  <Tab title="Error">
+    ```javascript
+    userData = { error: "No se pudo cargar la información." }
+    ```
+    Displays error message in red
+  </Tab>
+  <Tab title="Success">
+    ```javascript
+    userData = {
+      nombre: string,
+      correo: string,
+      DNI: string,
+      telefono: string,
+      clinica: string,
+      estado: string,
+      fecha_ingreso: string
+    }
+    ```
+    Displays employee profile
+  </Tab>
+</Tabs>
+
+### MSAL State
+
+```javascript
+const { accounts } = useMsal();
+```
+
+- **accounts**: Array of authenticated Microsoft accounts
+- **accounts[0].username**: Email address used for backend lookup
+
+## API Integration
+
+### Endpoint
+
+```
+GET http://localhost:5000/api/empleados/email/{userEmail}
+```
+
+### Request Flow
+
+1. Extract email from `accounts[0].username`
+2. Construct API URL with email parameter
+3. Fetch employee data
+4. Parse JSON response
+5. Update component state
+
+### Response Format
+
+```json
+{
+  "nombre": "Juan Pérez",
+  "correo": "juan.perez@eleos.com",
+  "DNI": "12345678",
+  "telefono": "+51 999 999 999",
+  "clinica": "Clínica Central",
+  "estado": "Activo",
+  "fecha_ingreso": "2023-01-15T00:00:00.000Z"
+}
+```
+
+<Note>
+The backend must have an endpoint that accepts email as a parameter and returns employee information matching the expected format.
+</Note>
+
+## Component Lifecycle
+
+<Accordion title="Mount Phase">
+1. Component renders with `userData = null`
+2. Displays "Cargando información..."
+3. `useEffect` hook executes
+4. Checks if `accounts.length > 0`
+5. If accounts exist, fetches employee data
+</Accordion>
+
+<Accordion title="Data Fetching Phase">
+1. Extract user email from `accounts[0].username`
+2. Initiate fetch request to backend
+3. Wait for response
+4. Parse JSON or catch errors
+5. Update `userData` state
+6. Component re-renders with new data
+</Accordion>
+
+<Accordion title="Update Phase">
+If `accounts` array changes (new login, logout, etc.):
+1. `useEffect` runs again
+2. Fetches data for new account
+3. Updates display
+</Accordion>
+
+## User Interface States
+
+### Loading State
+
+```jsx
+if (!userData) {
+  return (
+    <div className="mt-10 text-center text-gray-600">
+      Cargando información...
+    </div>
+  );
+}
+```
+
+Displayed when:
+- Component first mounts
+- Data fetch is in progress
+- `userData` is `null`
+
+### Error State
+
+```jsx
+if (userData.error) {
+  return (
+    <div className="mt-10 text-center text-red-600">
+      {userData.error}
+    </div>
+  );
+}
+```
+
+Displayed when:
+- Network request fails
+- Backend returns error status
+- User not found in database
+
+<Warning>
+Error handling is minimal. Consider adding retry logic and more detailed error messages for production.
+</Warning>
+
+### Success State
+
+Displays employee profile card with all information formatted and styled.
+
+## Styling
+
+The component uses Tailwind CSS classes:
+
+### Container Styling
+
+```jsx
+className="max-w-lg p-6 mx-auto mt-10 bg-white shadow-md rounded-xl"
+```
+
+- **max-w-lg**: Maximum width of 32rem (512px)
+- **p-6**: 1.5rem padding on all sides
+- **mx-auto**: Centered horizontally
+- **mt-10**: 2.5rem top margin
+- **bg-white**: White background
+- **shadow-md**: Medium drop shadow
+- **rounded-xl**: Extra large border radius
+
+### Content Styling
+
+```jsx
+className="mb-4 text-2xl font-bold text-center"
+```
+
+Title styling with centered, bold, large text
+
+```jsx
+className="space-y-2"
+```
+
+Vertical spacing of 0.5rem between profile fields
+
+<Tip>
+Tailwind CSS provides responsive utilities. Consider adding responsive breakpoints for better mobile experience:
+```jsx
+className="max-w-lg md:max-w-xl lg:max-w-2xl"
+```
+</Tip>
+
+## Error Handling
+
+### Network Errors
+
+```javascript
+.catch((err) => {
+  console.error("Error al obtener datos del usuario:", err);
+  setUserData({ error: "No se pudo cargar la información." });
+});
+```
+
+**Catches:**
+- Network failures
+- Timeout errors
+- DNS resolution failures
+
+### HTTP Errors
+
+```javascript
+if (!res.ok) {
+  throw new Error(`Error HTTP: ${res.status}`);
+}
+```
+
+**Handles:**
+- 404: User not found
+- 500: Server errors
+- 401/403: Authorization issues
+
+<Accordion title="Improving Error Messages">
+```javascript
+.catch((err) => {
+  console.error("Error al obtener datos del usuario:", err);
+  let errorMessage = "No se pudo cargar la información.";
+  
+  if (err.message.includes('404')) {
+    errorMessage = "Usuario no encontrado en el sistema.";
+  } else if (err.message.includes('500')) {
+    errorMessage = "Error del servidor. Intente más tarde.";
+  }
+  
+  setUserData({ error: errorMessage });
+});
+```
+</Accordion>
+
+## Data Display Fields
+
+<ParamField path="nombre" type="string">
+  Employee's full name
+</ParamField>
+
+<ParamField path="correo" type="string">
+  Employee's email address (should match Azure AD email)
+</ParamField>
+
+<ParamField path="DNI" type="string">
+  National identification document number
+</ParamField>
+
+<ParamField path="telefono" type="string">
+  Contact phone number
+</ParamField>
+
+<ParamField path="clinica" type="string">
+  Clinic or location assignment
+</ParamField>
+
+<ParamField path="estado" type="string">
+  Employment status (e.g., "Activo", "Inactivo")
+</ParamField>
+
+<ParamField path="fecha_ingreso" type="string (ISO Date)">
+  Date of employment start, formatted using `toLocaleDateString()`
+</ParamField>
+
+## Date Formatting
+
+```javascript
+{new Date(userData.fecha_ingreso).toLocaleDateString()}
+```
+
+Converts ISO date string to localized date format:
+
+- **Input:** `"2023-01-15T00:00:00.000Z"`
+- **Output:** `"1/15/2023"` (US) or `"15/01/2023"` (other locales)
+
+<Tip>
+Customize date format for specific locale:
+```javascript
+{new Date(userData.fecha_ingreso).toLocaleDateString('es-PE', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric'
+})}
+// Output: "15 de enero de 2023"
+```
+</Tip>
+
+## Usage Example
+
+### Basic Implementation
+
+```jsx
+import { MsalProvider } from '@azure/msal-react';
+import { PublicClientApplication } from '@azure/msal-browser';
+import SelfService from './componentes/SelfService';
+
+const msalConfig = {
+  auth: {
+    clientId: "your-client-id",
+    authority: "https://login.microsoftonline.com/your-tenant-id",
+    redirectUri: "http://localhost:3000"
+  }
+};
+
+const pca = new PublicClientApplication(msalConfig);
+
+function App() {
+  return (
+    <MsalProvider instance={pca}>
+      <SelfService />
+    </MsalProvider>
+  );
+}
+```
+
+### With Route Protection
+
+```jsx
+import { useIsAuthenticated } from '@azure/msal-react';
+import { Navigate } from 'react-router-dom';
+import SelfService from './componentes/SelfService';
+
+function ProtectedSelfService() {
+  const isAuthenticated = useIsAuthenticated();
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/" />;
+  }
+  
+  return <SelfService />;
+}
+```
+
+## Integration with LoginMicrosoft
+
+The `SelfService` component is typically used after authentication via `LoginMicrosoft`:
+
+```javascript
+// In LoginMicrosoft.jsx
+navigate("/selfservice");
+```
+
+**Flow:**
+1. User authenticates via `LoginMicrosoft`
+2. Redirected to `/selfservice` route
+3. `SelfService` component mounts
+4. Detects authenticated account from MSAL
+5. Fetches and displays employee data
+
+## Security Considerations
+
+<Warning>
+**Important Security Notes:**
+
+1. **Backend Validation**: The backend must verify the user's identity, not just accept any email parameter
+2. **CORS Configuration**: Ensure proper CORS settings for `http://localhost:5000`
+3. **Data Exposure**: Only expose employee data that the user should see
+4. **Authentication Token**: Consider passing MSAL token to backend for verification
+</Warning>
+
+### Recommended Improvement
+
+```javascript
+const { instance, accounts } = useMsal();
+
+// Acquire token silently
+const request = {
+  scopes: ["user.read"],
+  account: accounts[0]
+};
+
+const response = await instance.acquireTokenSilent(request);
+const accessToken = response.accessToken;
+
+// Include token in fetch
+fetch(`http://localhost:5000/api/empleados/email/${userEmail}`, {
+  headers: {
+    'Authorization': `Bearer ${accessToken}`
+  }
+})
+```
+
+## Performance Considerations
+
+<Accordion title="Preventing Unnecessary Fetches">
+The `useEffect` dependency array includes `accounts`, which means the fetch runs whenever accounts change. Consider adding a check:
+
+```javascript
+const [lastFetchedEmail, setLastFetchedEmail] = useState(null);
+
+useEffect(() => {
+  if (accounts.length > 0) {
+    const userEmail = accounts[0].username;
+    
+    // Only fetch if email changed
+    if (userEmail !== lastFetchedEmail) {
+      // ... fetch logic
+      setLastFetchedEmail(userEmail);
+    }
+  }
+}, [accounts, lastFetchedEmail]);
+```
+</Accordion>
+
+<Accordion title="Adding Cache">
+```javascript
+const [cache, setCache] = useState({});
+
+if (cache[userEmail]) {
+  setUserData(cache[userEmail]);
+} else {
+  fetch(...)
+    .then(data => {
+      setUserData(data);
+      setCache(prev => ({ ...prev, [userEmail]: data }));
+    });
+}
+```
+</Accordion>
+
+## Testing Considerations
+
+<Info>
+**Prerequisites for Testing:**
+- Azure AD application configured
+- Backend running on `http://localhost:5000`
+- Employee record in database with email matching Azure AD account
+- MSAL provider configured in parent component
+</Info>
+
+## Accessibility Improvements
+
+```jsx
+<div className="max-w-lg p-6 mx-auto mt-10 bg-white shadow-md rounded-xl" role="article" aria-label="Employee Profile">
+  <h2 className="mb-4 text-2xl font-bold text-center" id="profile-title">Mi Perfil</h2>
+  <div className="space-y-2" aria-labelledby="profile-title">
+    {/* ... */}
+  </div>
+</div>
+```

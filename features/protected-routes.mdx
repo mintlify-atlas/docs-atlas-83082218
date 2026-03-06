@@ -1,0 +1,477 @@
+---
+title: 'Protected Routes'
+description: 'Implement route protection to secure authenticated pages in your React application'
+icon: 'shield-halved'
+---
+
+Protected routes ensure that only authenticated users can access certain pages in your application. This feature is essential for securing sensitive information and maintaining proper access control.
+
+## Overview
+
+The Portal Self-Service application uses a `ProtectedRoute` component to wrap routes that require authentication. This component checks the authentication state before rendering protected pages.
+
+<Info>
+  Protected routes are implemented using React Router and localStorage-based authentication state management.
+</Info>
+
+## How Protected Routes Work
+
+<Steps>
+  <Step title="Route Access Attempt">
+    User attempts to navigate to a protected route
+  </Step>
+  
+  <Step title="Authentication Check">
+    The ProtectedRoute component checks localStorage for authentication status
+  </Step>
+  
+  <Step title="Authorization Decision">
+    If authenticated, render the requested page. If not, redirect to login
+  </Step>
+  
+  <Step title="Page Render">
+    Authorized users see the protected content
+  </Step>
+</Steps>
+
+## Implementation
+
+The `ProtectedRoute` component is implemented in `App.jsx`:
+
+```jsx App.jsx
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import LoginPage from './pages/LoginPage.jsx';
+import HomePage from './pages/HomePage.jsx';
+
+// Component to protect routes, ensuring only "logged in" users can access
+const ProtectedRoute = ({ children }) => {
+    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+  
+    if (!isAuthenticated) {
+        return <Navigate to="/" replace />;
+    }
+    
+    // If authenticated, render the component (HomePage)
+    return children;
+};
+
+const App = () => {
+    return (
+        <BrowserRouter>
+            <Routes>
+                {/* Login Route (main route) */}
+                <Route path="/" element={<LoginPage />} />
+                
+                {/* Protected Route: Only accessible after login */}
+                <Route 
+                    path="/home" 
+                    element={
+                        <ProtectedRoute>
+                            <HomePage />
+                        </ProtectedRoute>
+                    } 
+                />
+            </Routes>
+        </BrowserRouter>
+    );
+};
+
+export default App;
+```
+
+## Key Concepts
+
+### Authentication State
+
+The authentication state is stored in `localStorage`:
+
+```javascript
+// Setting authentication (in LoginPage.jsx)
+localStorage.setItem('isAuthenticated', 'true');
+localStorage.setItem('userName', data.nombre);
+
+// Checking authentication (in ProtectedRoute)
+const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+
+// Clearing authentication (on logout)
+localStorage.removeItem('isAuthenticated');
+localStorage.removeItem('userName');
+```
+
+<Note>
+  Using localStorage allows the authentication state to persist across browser sessions and page refreshes.
+</Note>
+
+### Navigation Guard
+
+The `Navigate` component from React Router automatically redirects unauthenticated users:
+
+```jsx
+if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
+}
+```
+
+The `replace` prop ensures the protected route isn't added to the browser history, preventing users from navigating back to it after being redirected.
+
+## Usage Examples
+
+### Protecting a Single Route
+
+```jsx
+<Route 
+  path="/home" 
+  element={
+    <ProtectedRoute>
+      <HomePage />
+    </ProtectedRoute>
+  } 
+/>
+```
+
+### Protecting Multiple Routes
+
+```jsx
+<Routes>
+  <Route path="/" element={<LoginPage />} />
+  
+  <Route 
+    path="/home" 
+    element={
+      <ProtectedRoute>
+        <HomePage />
+      </ProtectedRoute>
+    } 
+  />
+  
+  <Route 
+    path="/profile" 
+    element={
+      <ProtectedRoute>
+        <ProfilePage />
+      </ProtectedRoute>
+    } 
+  />
+  
+  <Route 
+    path="/settings" 
+    element={
+      <ProtectedRoute>
+        <SettingsPage />
+      </ProtectedRoute>
+    } 
+  />
+</Routes>
+```
+
+### Nested Protected Routes
+
+For applications with many protected routes, you can create a layout wrapper:
+
+```jsx
+const ProtectedLayout = () => {
+  return (
+    <ProtectedRoute>
+      <div className="app-layout">
+        <Sidebar />
+        <main>
+          <Outlet />
+        </main>
+      </div>
+    </ProtectedRoute>
+  );
+};
+
+// In your Routes
+<Route element={<ProtectedLayout />}>
+  <Route path="/home" element={<HomePage />} />
+  <Route path="/profile" element={<ProfilePage />} />
+  <Route path="/settings" element={<SettingsPage />} />
+</Route>
+```
+
+## Additional Protection in Page Components
+
+For defense in depth, protected pages can also verify authentication:
+
+```jsx HomePage.jsx
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+const HomePage = () => {
+    const navigate = useNavigate();
+    const [userName, setUserName] = useState('');
+
+    useEffect(() => {
+        // Verify authentication status
+        const authenticated = localStorage.getItem('isAuthenticated');
+        const name = localStorage.getItem('userName');
+        
+        if (!authenticated) {
+            // If not authenticated, redirect back to login
+            navigate('/');
+        } else {
+            setUserName(name || 'Usuario');
+        }
+    }, [navigate]);
+
+    const handleLogout = () => {
+        localStorage.removeItem('isAuthenticated');
+        localStorage.removeItem('userName');
+        navigate('/');
+    };
+
+    return (
+        <div style={{ padding: '20px', border: '1px solid green', margin: '20px' }}>
+            <h1>🚀 Bienvenido al Portal Self-Service, {userName}</h1>
+            <p>Has iniciado sesión exitosamente. La conexión con el backend fue verificada.</p>
+            <button onClick={handleLogout}>Cerrar Sesión (Simulado)</button>
+        </div>
+    );
+};
+
+export default HomePage;
+```
+
+<Warning>
+  This double-check approach provides an additional layer of security and ensures that even if the ProtectedRoute is bypassed, the page itself will redirect unauthenticated users.
+</Warning>
+
+## Advanced Protection Patterns
+
+### Role-Based Access Control
+
+Extend the ProtectedRoute to support role-based access:
+
+```jsx
+const ProtectedRoute = ({ children, requiredRole }) => {
+    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+    const userRole = localStorage.getItem('userRole');
+  
+    if (!isAuthenticated) {
+        return <Navigate to="/" replace />;
+    }
+    
+    if (requiredRole && userRole !== requiredRole) {
+        return <Navigate to="/unauthorized" replace />;
+    }
+    
+    return children;
+};
+
+// Usage
+<Route 
+  path="/admin" 
+  element={
+    <ProtectedRoute requiredRole="admin">
+      <AdminPage />
+    </ProtectedRoute>
+  } 
+/>
+```
+
+### Permission-Based Access
+
+Implement fine-grained permission checks:
+
+```jsx
+const ProtectedRoute = ({ children, requiredPermissions = [] }) => {
+    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+    const userPermissions = JSON.parse(
+      localStorage.getItem('userPermissions') || '[]'
+    );
+  
+    if (!isAuthenticated) {
+        return <Navigate to="/" replace />;
+    }
+    
+    const hasRequiredPermissions = requiredPermissions.every(
+      permission => userPermissions.includes(permission)
+    );
+    
+    if (requiredPermissions.length > 0 && !hasRequiredPermissions) {
+        return <Navigate to="/forbidden" replace />;
+    }
+    
+    return children;
+};
+
+// Usage
+<Route 
+  path="/reports" 
+  element={
+    <ProtectedRoute requiredPermissions={['view_reports', 'export_data']}>
+      <ReportsPage />
+    </ProtectedRoute>
+  } 
+/>
+```
+
+### Redirect to Intended Destination
+
+Preserve the intended destination after login:
+
+```jsx
+const ProtectedRoute = ({ children }) => {
+    const location = useLocation();
+    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+  
+    if (!isAuthenticated) {
+        // Save the intended destination
+        return <Navigate to="/" state={{ from: location }} replace />;
+    }
+    
+    return children;
+};
+
+// In LoginPage, redirect to the intended destination
+const location = useLocation();
+const from = location.state?.from?.pathname || '/home';
+
+// After successful login
+navigate(from, { replace: true });
+```
+
+## Security Considerations
+
+<CardGroup cols={2}>
+  <Card title="Client-Side Only" icon="exclamation-triangle">
+    localStorage can be manipulated by users. Always validate on the server
+  </Card>
+  <Card title="Token Expiration" icon="clock">
+    Implement token expiration and refresh mechanisms
+  </Card>
+  <Card title="Sensitive Data" icon="lock">
+    Never store sensitive information in localStorage
+  </Card>
+  <Card title="HTTPS" icon="shield">
+    Always use HTTPS in production to prevent token interception
+  </Card>
+</CardGroup>
+
+<Warning>
+  **Critical Security Note:**
+  
+  Client-side route protection is not sufficient for securing your application. Always implement server-side authorization checks for API endpoints. A malicious user can manipulate localStorage or bypass client-side checks.
+</Warning>
+
+## Testing Protected Routes
+
+### Manual Testing
+
+<Steps>
+  <Step title="Test Unauthorized Access">
+    Clear localStorage and try to access `/home` directly - should redirect to `/`
+  </Step>
+  
+  <Step title="Test Authorized Access">
+    Log in successfully and navigate to `/home` - should display HomePage
+  </Step>
+  
+  <Step title="Test Logout">
+    Click logout and try to access `/home` - should redirect to `/`
+  </Step>
+  
+  <Step title="Test Browser Refresh">
+    Log in, refresh the page - should remain authenticated (localStorage persists)
+  </Step>
+</Steps>
+
+### Automated Testing
+
+Example test using React Testing Library:
+
+```jsx
+import { render, screen } from '@testing-library/react';
+import { BrowserRouter } from 'react-router-dom';
+import App from './App';
+
+test('redirects to login when not authenticated', () => {
+  localStorage.removeItem('isAuthenticated');
+  
+  render(<App />);
+  
+  // Should show login page
+  expect(screen.getByText(/Login Prueba/i)).toBeInTheDocument();
+});
+
+test('allows access to protected route when authenticated', () => {
+  localStorage.setItem('isAuthenticated', 'true');
+  localStorage.setItem('userName', 'Test User');
+  
+  render(<App />);
+  
+  // Navigate to protected route
+  window.history.pushState({}, 'Home', '/home');
+  
+  // Should show home page
+  expect(screen.getByText(/Bienvenido/i)).toBeInTheDocument();
+});
+```
+
+## Best Practices
+
+<Accordion title="Route Protection Best Practices">
+  1. **Always protect sensitive routes** - Never assume users won't guess URLs
+  2. **Implement server-side validation** - Client-side protection is only the first layer
+  3. **Clear authentication on logout** - Remove all auth-related data from storage
+  4. **Handle edge cases** - Consider slow networks, expired sessions, and race conditions
+  5. **Provide feedback** - Show loading states and clear error messages
+  6. **Use proper redirects** - Use `replace` to avoid confusing navigation history
+  7. **Test thoroughly** - Test both authorized and unauthorized access scenarios
+</Accordion>
+
+<Tip>
+  Consider implementing a higher-order component (HOC) or custom hook for authentication checks that can be reused across your application.
+</Tip>
+
+## Common Issues and Solutions
+
+### Issue: Authentication State Not Persisting
+
+```javascript
+// Problem: Using state instead of localStorage
+const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+// Solution: Use localStorage for persistence
+localStorage.setItem('isAuthenticated', 'true');
+```
+
+### Issue: Redirect Loop
+
+```javascript
+// Problem: Protected route redirects to itself
+<Route path="/login" element={
+  <ProtectedRoute>
+    <LoginPage />
+  </ProtectedRoute>
+} />
+
+// Solution: Only protect routes that require authentication
+<Route path="/login" element={<LoginPage />} />
+```
+
+### Issue: Race Condition on Logout
+
+```javascript
+// Problem: Navigating before clearing storage
+navigate('/');
+localStorage.clear();
+
+// Solution: Clear storage first
+localStorage.removeItem('isAuthenticated');
+localStorage.removeItem('userName');
+navigate('/');
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="lock" href="/features/authentication">
+    Learn about the authentication implementation
+  </Card>
+  <Card title="Employee Profile" icon="user" href="/features/employee-profile">
+    Display user profile in protected pages
+  </Card>
+</CardGroup>

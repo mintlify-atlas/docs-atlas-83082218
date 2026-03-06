@@ -1,0 +1,783 @@
+---
+title: LoginMicrosoft
+description: Azure AD authentication component with MSAL integration for employee login and session management
+---
+
+## Overview
+
+The `LoginMicrosoft` component provides enterprise-grade authentication using Microsoft Azure Active Directory (Azure AD). It handles the complete authentication flow including popup login, user account management, session storage, and backend synchronization for employee records.
+
+<Info>
+This is the production authentication component for the Portal Self-Service application, replacing simulated authentication with real Azure AD integration.
+</Info>
+
+## Component Location
+
+```
+src/componentes/LoginMicrosoft.jsx
+```
+
+## Full Source Code
+
+```jsx
+import { useMsal } from "@azure/msal-react";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
+function LoginMicrosoft() {
+  const { instance, accounts } = useMsal();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (accounts.length > 0) {
+      navigate("/selfservice");
+    }
+  }, [accounts, navigate]);
+
+  const handleLogin = async () => {
+    try {
+      const response = await instance.loginPopup({
+        scopes: ["user.read", "email", "openid", "profile"],
+        prompt: "select_account",
+      });
+
+      const account = response.account;
+      const email = account.username;
+      const nombreCompleto = account.name;
+
+      const empleadoResponse = await fetch(
+        `http://localhost:5000/api/empleados/email/${email}`
+      );
+      const empleadoData = await empleadoResponse.json();
+
+      if (empleadoData?.id_empleado) {
+        await fetch("http://localhost:5000/api/sso/actualizar-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id_empleado: empleadoData.id_empleado }),
+        });
+      }
+
+      localStorage.setItem("usuario_email", email);
+      localStorage.setItem("usuario_nombre", nombreCompleto);
+
+      navigate("/selfservice");
+    } catch (error) {
+      console.error("Error en login:", error);
+    }
+  };
+
+  const handleLogout = () => {
+    instance.setActiveAccount(null);
+    localStorage.removeItem("usuario_email");
+    localStorage.removeItem("usuario_nombre");
+    navigate("/");
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
+      <div className="w-full max-w-md p-5 text-center bg-white shadow-md rounded-xl">
+        <h1 className="mb-6 text-2xl font-bold text-gray-700">
+          Sistema de Gestión de Empleados
+        </h1>
+        {accounts.length === 0 ? (
+          <>
+            <p className="mb-4 text-gray-600">
+              Inicia sesión con tu correo de ELEOS
+            </p>
+            <button
+              onClick={handleLogin}
+              className="px-6 py-3 text-white transition bg-blue-600 rounded-lg hover:bg-blue-700"
+            >
+              Log In
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="mb-4 text-gray-600">
+              Sesión activa como:
+              <br />
+              <strong>{accounts[0].name}</strong>
+            </p>
+            <button
+              onClick={handleLogout}
+              className="px-6 py-3 text-white transition bg-red-600 rounded-lg hover:bg-red-700"
+            >
+              Log Out
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default LoginMicrosoft;
+```
+
+## Component Features
+
+### Azure AD Authentication
+
+Integrates with Microsoft Authentication Library (MSAL) for secure OAuth 2.0 / OpenID Connect authentication.
+
+### Popup-based Login
+
+Uses popup window for authentication to avoid full page redirects and improve user experience.
+
+### Automatic Redirect
+
+Automatically redirects authenticated users to the self-service portal.
+
+### Backend Synchronization
+
+Syncs login events with backend to track employee access and update last login timestamps.
+
+### Session Management
+
+Stores user information in localStorage for application-wide access.
+
+### Dual-state UI
+
+Dynamically displays login or logout interface based on authentication state.
+
+## Hooks Used
+
+<ParamField path="useMsal" type="@azure/msal-react Hook">
+  Provides access to MSAL instance and authenticated accounts.
+  
+  **Returns:**
+  - `instance`: MSAL PublicClientApplication instance for authentication operations
+  - `accounts`: Array of authenticated Microsoft accounts
+</ParamField>
+
+<ParamField path="useNavigate" type="React Router Hook">
+  Enables programmatic navigation after authentication events.
+</ParamField>
+
+<ParamField path="useEffect" type="React Hook">
+  Implements automatic redirect for authenticated users.
+  
+  **Dependencies:** `[accounts, navigate]`
+  
+  **Behavior:** Redirects to `/selfservice` when accounts array has items
+</ParamField>
+
+## Authentication Flow
+
+<Tabs>
+  <Tab title="Step 1: User Click">
+    User clicks "Log In" button, triggering `handleLogin` function
+  </Tab>
+  <Tab title="Step 2: MSAL Popup">
+    `instance.loginPopup()` opens Microsoft authentication popup window
+    
+    **Requested Scopes:**
+    - `user.read`: Access to user profile
+    - `email`: Access to email address
+    - `openid`: OpenID Connect authentication
+    - `profile`: Access to profile information
+    
+    **Prompt:** `select_account` forces account selection dialog
+  </Tab>
+  <Tab title="Step 3: Microsoft Auth">
+    User authenticates with Microsoft (username/password, MFA, etc.)
+    
+    Microsoft validates credentials and returns authorization response
+  </Tab>
+  <Tab title="Step 4: Extract User Data">
+    ```javascript
+    const account = response.account;
+    const email = account.username;
+    const nombreCompleto = account.name;
+    ```
+    
+    Extract authenticated user's email and name from MSAL response
+  </Tab>
+  <Tab title="Step 5: Backend Lookup">
+    Fetch employee record from backend using email address:
+    
+    ```
+    GET http://localhost:5000/api/empleados/email/{email}
+    ```
+  </Tab>
+  <Tab title="Step 6: Update Login Timestamp">
+    If employee found, update last login timestamp:
+    
+    ```
+    POST http://localhost:5000/api/sso/actualizar-login
+    Body: { id_empleado: empleadoData.id_empleado }
+    ```
+  </Tab>
+  <Tab title="Step 7: Store Session">
+    Save user information to localStorage:
+    - `usuario_email`
+    - `usuario_nombre`
+  </Tab>
+  <Tab title="Step 8: Navigate">
+    Redirect to `/selfservice` to display employee portal
+  </Tab>
+</Tabs>
+
+## Functions
+
+### handleLogin
+
+```javascript
+const handleLogin = async () => {
+  try {
+    const response = await instance.loginPopup({
+      scopes: ["user.read", "email", "openid", "profile"],
+      prompt: "select_account",
+    });
+    // ... rest of logic
+  } catch (error) {
+    console.error("Error en login:", error);
+  }
+};
+```
+
+**Purpose:** Manages the complete login flow from authentication to backend sync
+
+**Parameters:**
+- **scopes**: Array of Microsoft Graph API permissions requested
+- **prompt**: `"select_account"` ensures user can choose which account to use
+
+**Error Handling:** Catches and logs authentication errors without crashing the application
+
+<Accordion title="Common Login Errors">
+- `user_cancelled`: User closed the popup or cancelled login
+- `consent_required`: User needs to consent to requested scopes
+- `interaction_required`: Additional interaction needed (e.g., MFA)
+- Network errors: Backend unavailable
+</Accordion>
+
+### handleLogout
+
+```javascript
+const handleLogout = () => {
+  instance.setActiveAccount(null);
+  localStorage.removeItem("usuario_email");
+  localStorage.removeItem("usuario_nombre");
+  navigate("/");
+};
+```
+
+**Purpose:** Terminates user session and clears all authentication data
+
+**Actions:**
+1. Clear MSAL active account
+2. Remove email from localStorage
+3. Remove name from localStorage
+4. Navigate back to login page
+
+<Note>
+This performs a local logout only. For complete sign-out including Azure AD session, use `instance.logoutPopup()` or `instance.logoutRedirect()`.
+</Note>
+
+## MSAL Configuration Requirements
+
+The component requires MSAL to be configured in a parent component:
+
+```javascript
+import { PublicClientApplication } from '@azure/msal-browser';
+import { MsalProvider } from '@azure/msal-react';
+
+const msalConfig = {
+  auth: {
+    clientId: "your-azure-ad-client-id",
+    authority: "https://login.microsoftonline.com/your-tenant-id",
+    redirectUri: "http://localhost:3000",
+  },
+  cache: {
+    cacheLocation: "sessionStorage",
+    storeAuthStateInCookie: false,
+  }
+};
+
+const pca = new PublicClientApplication(msalConfig);
+
+function App() {
+  return (
+    <MsalProvider instance={pca}>
+      <LoginMicrosoft />
+    </MsalProvider>
+  );
+}
+```
+
+<Warning>
+**Azure AD App Registration Required:**
+
+Before using this component, you must:
+1. Register an application in Azure Portal
+2. Configure redirect URIs
+3. Set API permissions (User.Read, email, openid, profile)
+4. Note the Client ID and Tenant ID
+</Warning>
+
+## API Integration
+
+### Endpoint 1: Get Employee by Email
+
+```
+GET http://localhost:5000/api/empleados/email/{email}
+```
+
+**Purpose:** Retrieve employee record from database
+
+**Response Format:**
+```json
+{
+  "id_empleado": 123,
+  "nombre": "Juan Pérez",
+  "correo": "juan.perez@eleos.com",
+  "DNI": "12345678",
+  "telefono": "+51 999 999 999",
+  "clinica": "Clínica Central",
+  "estado": "Activo",
+  "fecha_ingreso": "2023-01-15T00:00:00.000Z"
+}
+```
+
+### Endpoint 2: Update Login Timestamp
+
+```
+POST http://localhost:5000/api/sso/actualizar-login
+Content-Type: application/json
+
+{
+  "id_empleado": 123
+}
+```
+
+**Purpose:** Record login event and update last login timestamp in database
+
+**Response:** Typically returns success status or updated employee record
+
+<Tip>
+Consider adding error handling for the backend calls:
+```javascript
+if (!empleadoResponse.ok) {
+  throw new Error('Employee not found in database');
+}
+```
+</Tip>
+
+## Component States
+
+### Not Authenticated State
+
+```jsx
+accounts.length === 0
+```
+
+**UI Display:**
+- Title: "Sistema de Gestión de Empleados"
+- Message: "Inicia sesión con tu correo de ELEOS"
+- Blue "Log In" button
+
+**User Actions:**
+- Click "Log In" to authenticate
+
+### Authenticated State
+
+```jsx
+accounts.length > 0
+```
+
+**UI Display:**
+- Title: "Sistema de Gestión de Empleados"
+- Message: "Sesión activa como: [User Name]"
+- Red "Log Out" button
+
+**Automatic Behavior:**
+- `useEffect` automatically redirects to `/selfservice`
+- User only sees this briefly before redirect
+
+## Styling
+
+The component uses Tailwind CSS for a modern, responsive design.
+
+### Container Layout
+
+```jsx
+className="flex flex-col items-center justify-center h-screen bg-gray-50"
+```
+
+- **flex flex-col**: Vertical flexbox layout
+- **items-center**: Horizontal centering
+- **justify-center**: Vertical centering
+- **h-screen**: Full viewport height
+- **bg-gray-50**: Light gray background
+
+### Card Styling
+
+```jsx
+className="w-full max-w-md p-5 text-center bg-white shadow-md rounded-xl"
+```
+
+- **w-full max-w-md**: Responsive width, max 28rem (448px)
+- **p-5**: 1.25rem padding
+- **text-center**: Centered text
+- **bg-white**: White card background
+- **shadow-md**: Medium drop shadow
+- **rounded-xl**: Extra large border radius
+
+### Button Styles
+
+<Tabs>
+  <Tab title="Login Button">
+    ```jsx
+    className="px-6 py-3 text-white transition bg-blue-600 rounded-lg hover:bg-blue-700"
+    ```
+    
+    - Blue background (#2563eb)
+    - White text
+    - Smooth transition on hover
+    - Darker blue on hover (#1d4ed8)
+  </Tab>
+  <Tab title="Logout Button">
+    ```jsx
+    className="px-6 py-3 text-white transition bg-red-600 rounded-lg hover:bg-red-700"
+    ```
+    
+    - Red background (#dc2626)
+    - White text
+    - Smooth transition on hover
+    - Darker red on hover (#b91c1c)
+  </Tab>
+</Tabs>
+
+## Session Storage
+
+The component stores user information in localStorage:
+
+```javascript
+localStorage.setItem("usuario_email", email);
+localStorage.setItem("usuario_nombre", nombreCompleto);
+```
+
+**Stored Data:**
+- **usuario_email**: User's email from Azure AD (e.g., "user@eleos.com")
+- **usuario_nombre**: User's display name (e.g., "Juan Pérez")
+
+**Usage in Other Components:**
+```javascript
+const userEmail = localStorage.getItem('usuario_email');
+const userName = localStorage.getItem('usuario_nombre');
+```
+
+<Warning>
+**Security Consideration:**
+
+localStorage is vulnerable to XSS attacks. Consider:
+- Storing only non-sensitive data
+- Using httpOnly cookies for tokens
+- Implementing proper Content Security Policy (CSP)
+</Warning>
+
+## Auto-redirect Logic
+
+```javascript
+useEffect(() => {
+  if (accounts.length > 0) {
+    navigate("/selfservice");
+  }
+}, [accounts, navigate]);
+```
+
+**Behavior:**
+- Runs when component mounts and when `accounts` changes
+- If user is already authenticated (accounts exist), immediately navigate to self-service portal
+- Prevents authenticated users from seeing the login screen
+
+**Use Cases:**
+- User refreshes the login page while authenticated
+- User manually navigates to login route while logged in
+- Component remounts with existing authentication
+
+## Error Handling
+
+### Current Implementation
+
+```javascript
+catch (error) {
+  console.error("Error en login:", error);
+}
+```
+
+**Limitation:** Errors are only logged to console, user receives no feedback
+
+### Recommended Improvements
+
+<Accordion title="User-Facing Error Messages">
+```javascript
+const [error, setError] = useState(null);
+
+try {
+  // ... login logic
+  setError(null);
+} catch (error) {
+  console.error("Error en login:", error);
+  
+  if (error.errorCode === 'user_cancelled') {
+    setError('Inicio de sesión cancelado');
+  } else if (error.errorCode === 'consent_required') {
+    setError('Se requiere autorización adicional');
+  } else {
+    setError('Error al iniciar sesión. Intente nuevamente.');
+  }
+}
+
+// In JSX
+{error && (
+  <div className="p-3 mt-4 text-red-700 bg-red-100 rounded">
+    {error}
+  </div>
+)}
+```
+</Accordion>
+
+<Accordion title="Backend Error Handling">
+```javascript
+const empleadoResponse = await fetch(
+  `http://localhost:5000/api/empleados/email/${email}`
+);
+
+if (!empleadoResponse.ok) {
+  if (empleadoResponse.status === 404) {
+    throw new Error('Usuario no registrado en el sistema');
+  } else {
+    throw new Error('Error al verificar usuario');
+  }
+}
+
+const empleadoData = await empleadoResponse.json();
+```
+</Accordion>
+
+<Accordion title="Retry Logic">
+```javascript
+const fetchWithRetry = async (url, options, retries = 3) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) return response;
+    } catch (error) {
+      if (i === retries - 1) throw error;
+      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+    }
+  }
+};
+```
+</Accordion>
+
+## Usage Example
+
+### Complete Application Setup
+
+```jsx
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { PublicClientApplication } from '@azure/msal-browser';
+import { MsalProvider } from '@azure/msal-react';
+
+import LoginMicrosoft from './componentes/LoginMicrosoft';
+import SelfService from './componentes/SelfService';
+
+const msalConfig = {
+  auth: {
+    clientId: process.env.REACT_APP_AZURE_CLIENT_ID,
+    authority: `https://login.microsoftonline.com/${process.env.REACT_APP_AZURE_TENANT_ID}`,
+    redirectUri: window.location.origin,
+  },
+  cache: {
+    cacheLocation: "sessionStorage",
+    storeAuthStateInCookie: false,
+  }
+};
+
+const pca = new PublicClientApplication(msalConfig);
+
+function App() {
+  return (
+    <MsalProvider instance={pca}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<LoginMicrosoft />} />
+          <Route path="/selfservice" element={<SelfService />} />
+        </Routes>
+      </BrowserRouter>
+    </MsalProvider>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+```
+
+### Environment Variables
+
+```bash
+# .env file
+REACT_APP_AZURE_CLIENT_ID=your-client-id-here
+REACT_APP_AZURE_TENANT_ID=your-tenant-id-here
+```
+
+## Integration with Other Components
+
+### Flow Diagram
+
+```
+LoginMicrosoft (authenticates)
+      |
+      v
+Navigate to /selfservice
+      |
+      v
+SelfService (displays profile)
+```
+
+### Data Passed Between Components
+
+1. **MSAL Accounts**: Managed globally by MSAL context
+2. **localStorage**: Shared between components
+   - `usuario_email`
+   - `usuario_nombre`
+
+## Testing Considerations
+
+<Info>
+**Prerequisites for Testing:**
+
+1. Azure AD app registration completed
+2. Client ID and Tenant ID configured
+3. Redirect URI matches your development server
+4. Backend API running on `http://localhost:5000`
+5. Test user account in your Azure AD tenant
+6. Employee record in database matching test user email
+</Info>
+
+### Test Scenarios
+
+<Accordion title="Successful Login">
+1. Click "Log In" button
+2. Popup opens with Microsoft login
+3. Enter valid credentials
+4. Popup closes
+5. Component fetches employee data
+6. Login timestamp updated in backend
+7. User redirected to `/selfservice`
+</Accordion>
+
+<Accordion title="User Not in Database">
+1. Authenticate with valid Azure AD account
+2. Backend returns 404 for employee lookup
+3. Should handle gracefully (current implementation doesn't)
+4. Consider showing error message
+</Accordion>
+
+<Accordion title="Backend Unavailable">
+1. Stop backend server
+2. Attempt login
+3. MSAL succeeds, but backend calls fail
+4. Error caught and logged
+5. User stuck on login screen
+</Accordion>
+
+<Accordion title="Logout Flow">
+1. Authenticate and navigate away
+2. Return to login page
+3. See active session UI
+4. Click "Log Out"
+5. MSAL account cleared
+6. localStorage cleared
+7. Can log in again
+</Accordion>
+
+## Production Deployment Considerations
+
+<Warning>
+**Update for Production:**
+
+1. Change backend URLs from `localhost:5000` to production API
+2. Use environment variables for all URLs
+3. Implement proper error handling and user feedback
+4. Add loading indicators during authentication
+5. Configure production redirect URIs in Azure AD
+6. Enable token validation in backend
+7. Implement proper logout with Azure AD session termination
+8. Add analytics/logging for authentication events
+</Warning>
+
+### Environment-Specific Configuration
+
+```javascript
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000';
+
+const empleadoResponse = await fetch(
+  `${API_BASE_URL}/api/empleados/email/${email}`
+);
+```
+
+## Security Best Practices
+
+<Tabs>
+  <Tab title="Token Handling">
+    Consider acquiring and passing MSAL access tokens to backend:
+    
+    ```javascript
+    const request = {
+      scopes: ["user.read"],
+      account: accounts[0]
+    };
+    
+    const tokenResponse = await instance.acquireTokenSilent(request);
+    
+    fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${tokenResponse.accessToken}`
+      }
+    });
+    ```
+  </Tab>
+  <Tab title="Validate on Backend">
+    Backend must validate:
+    - Token signature
+    - Token expiration
+    - User permissions
+    - Email matches database record
+  </Tab>
+  <Tab title="Secure Storage">
+    - Use httpOnly cookies for sensitive tokens
+    - Keep localStorage for display data only
+    - Implement proper CORS policies
+    - Use HTTPS in production
+  </Tab>
+  <Tab title="Session Management">
+    - Implement session timeout
+    - Refresh tokens before expiration
+    - Handle token renewal gracefully
+    - Clear all data on logout
+  </Tab>
+</Tabs>
+
+## Accessibility
+
+```jsx
+<button
+  onClick={handleLogin}
+  className="px-6 py-3 text-white transition bg-blue-600 rounded-lg hover:bg-blue-700"
+  aria-label="Log in with Microsoft account"
+>
+  Log In
+</button>
+```
+
+Consider adding:
+- ARIA labels for screen readers
+- Focus management after popup closes
+- Keyboard navigation support
+- Loading state announcements

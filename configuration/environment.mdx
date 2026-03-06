@@ -1,0 +1,428 @@
+---
+title: Environment Configuration
+description: Set up your development, staging, and production environments for the Portal Self-Service application
+---
+
+The Portal Self-Service is built with Vite and React, providing a fast development experience with efficient production builds. This guide covers environment setup, scripts, and configuration.
+
+## Project Overview
+
+The application is a modern React SPA (Single Page Application) with the following technology stack:
+
+- **Build Tool**: Vite 7.1.7
+- **Framework**: React 19.1.1
+- **Styling**: Tailwind CSS 3.4.18
+- **Routing**: React Router DOM 7.9.5
+- **Authentication**: Azure MSAL 4.26.0
+
+## Package Scripts
+
+The application defines several npm scripts in `package.json` for different environments:
+
+<CodeGroup>
+```json package.json
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  }
+}
+```
+</CodeGroup>
+
+### Available Commands
+
+<ParamField path="dev" type="command">
+  Starts the Vite development server with hot module replacement (HMR).
+  
+  ```bash
+  npm run dev
+  ```
+  
+  - Default port: `5173`
+  - Hot reload enabled
+  - Source maps enabled
+  - Fast refresh for React components
+</ParamField>
+
+<ParamField path="build" type="command">
+  Creates an optimized production build.
+  
+  ```bash
+  npm run build
+  ```
+  
+  - Output directory: `dist/`
+  - Minified and optimized
+  - Tree-shaking applied
+  - Asset hashing for cache busting
+</ParamField>
+
+<ParamField path="lint" type="command">
+  Runs ESLint to check code quality and style.
+  
+  ```bash
+  npm run lint
+  ```
+  
+  - Checks all files in the project
+  - Uses ESLint 9.36.0
+  - Includes React-specific rules
+</ParamField>
+
+<ParamField path="preview" type="command">
+  Locally preview the production build.
+  
+  ```bash
+  npm run preview
+  ```
+  
+  - Serves the `dist/` folder
+  - Tests production build locally
+  - Default port: `4173`
+</ParamField>
+
+## Environment Setup
+
+<Steps>
+  <Step title="Clone the Repository">
+    ```bash
+    git clone <repository-url>
+    cd portal-selfservice-frontend
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    ```bash
+    npm install
+    ```
+    
+    This installs all dependencies and devDependencies defined in `package.json`.
+  </Step>
+
+  <Step title="Create Environment File">
+    Create a `.env` file in the project root for environment-specific variables:
+    
+    ```bash
+    # .env
+    VITE_API_URL=http://localhost:3000/api
+    VITE_AZURE_CLIENT_ID=your-client-id
+    VITE_AZURE_TENANT_ID=your-tenant-id
+    VITE_REDIRECT_URI=http://localhost:5173
+    ```
+    
+    <Note>
+    Vite requires environment variables to be prefixed with `VITE_` to be exposed to the client-side code.
+    </Note>
+  </Step>
+
+  <Step title="Start Development Server">
+    ```bash
+    npm run dev
+    ```
+    
+    The application will be available at `http://localhost:5173`
+  </Step>
+</Steps>
+
+## Vite Configuration
+
+The application uses a minimal Vite configuration in `vite.config.js`:
+
+<CodeGroup>
+```javascript vite.config.js
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react-swc'
+
+export default defineConfig({
+  plugins: [react()],
+})
+```
+</CodeGroup>
+
+### Key Features
+
+<ParamField path="plugins" type="array">
+  **@vitejs/plugin-react-swc**: Uses SWC (Speedy Web Compiler) for faster React transformations compared to Babel.
+</ParamField>
+
+## Extended Configuration Options
+
+You can extend the Vite configuration for more advanced setups:
+
+<CodeGroup>
+```javascript Advanced vite.config.js
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react-swc'
+import path from 'path'
+
+export default defineConfig({
+  plugins: [react()],
+  
+  // Server configuration
+  server: {
+    port: 5173,
+    host: true, // Listen on all addresses
+    open: true, // Open browser on start
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      }
+    }
+  },
+  
+  // Build configuration
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+    minify: 'esbuild',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'azure-msal': ['@azure/msal-browser', '@azure/msal-react']
+        }
+      }
+    }
+  },
+  
+  // Path aliases
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      '@components': path.resolve(__dirname, './src/components'),
+      '@pages': path.resolve(__dirname, './src/pages'),
+    }
+  },
+  
+  // Environment variables prefix
+  envPrefix: 'VITE_',
+})
+```
+</CodeGroup>
+
+## Environment Variables
+
+### Accessing Environment Variables
+
+Vite exposes environment variables through `import.meta.env`:
+
+<CodeGroup>
+```javascript Usage Example
+// Accessing environment variables
+const apiUrl = import.meta.env.VITE_API_URL;
+const isDev = import.meta.env.DEV;
+const isProd = import.meta.env.PROD;
+
+// Example in a component
+const App = () => {
+  const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+  
+  return (
+    // Your component
+  );
+};
+```
+</CodeGroup>
+
+### Built-in Environment Variables
+
+<ParamField path="import.meta.env.MODE" type="string">
+  The mode the app is running in: `development` or `production`
+</ParamField>
+
+<ParamField path="import.meta.env.DEV" type="boolean">
+  `true` if running in development mode
+</ParamField>
+
+<ParamField path="import.meta.env.PROD" type="boolean">
+  `true` if running in production mode
+</ParamField>
+
+<ParamField path="import.meta.env.BASE_URL" type="string">
+  The base URL the app is being served from
+</ParamField>
+
+### Environment-Specific Files
+
+Create different environment files for different scenarios:
+
+```bash
+.env                # Loaded in all cases
+.env.local          # Loaded in all cases, ignored by git
+.env.development    # Only loaded in development
+.env.production     # Only loaded in production
+```
+
+<Warning>
+**Security Note**: Only `VITE_*` prefixed variables are exposed to client code. Never store sensitive secrets in `VITE_*` variables as they will be embedded in the client bundle.
+</Warning>
+
+## Backend Configuration
+
+The application communicates with a backend API. Current configuration in `LoginPage.jsx`:
+
+<CodeGroup>
+```javascript src/pages/LoginPage.jsx
+const response = await fetch('http://localhost:3000/api/empleados/profile', {
+  method: 'GET',
+  headers: {
+    'Authorization': `Bearer ${mockToken}`
+  },
+  credentials: 'include'
+});
+```
+</CodeGroup>
+
+### Making it Environment-Aware
+
+Update your API calls to use environment variables:
+
+<CodeGroup>
+```javascript Using Environment Variables
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+const response = await fetch(`${API_BASE_URL}/api/empleados/profile`, {
+  method: 'GET',
+  headers: {
+    'Authorization': `Bearer ${token}`
+  },
+  credentials: 'include'
+});
+```
+</CodeGroup>
+
+## Tailwind CSS Configuration
+
+The application uses Tailwind CSS for styling, configured in `tailwind.config.js`:
+
+<CodeGroup>
+```javascript tailwind.config.js
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+```
+</CodeGroup>
+
+<Info>
+The `content` array tells Tailwind where to look for class names to include in the final CSS bundle. This enables Tailwind's tree-shaking to remove unused styles.
+</Info>
+
+## Production Deployment
+
+<Steps>
+  <Step title="Build the Application">
+    ```bash
+    npm run build
+    ```
+    
+    This creates an optimized production build in the `dist/` folder.
+  </Step>
+
+  <Step title="Test Production Build Locally">
+    ```bash
+    npm run preview
+    ```
+    
+    Verify the production build works correctly before deploying.
+  </Step>
+
+  <Step title="Set Production Environment Variables">
+    Configure production environment variables in your hosting platform:
+    
+    ```bash
+    VITE_API_URL=https://api.yourcompany.com
+    VITE_AZURE_CLIENT_ID=prod-client-id
+    VITE_AZURE_TENANT_ID=prod-tenant-id
+    VITE_REDIRECT_URI=https://portal.yourcompany.com
+    ```
+  </Step>
+
+  <Step title="Deploy">
+    Upload the contents of the `dist/` folder to your hosting provider.
+    
+    Common hosting options:
+    - Azure Static Web Apps
+    - Vercel
+    - Netlify
+    - AWS S3 + CloudFront
+    - Traditional web server (Apache, Nginx)
+  </Step>
+</Steps>
+
+## Development Best Practices
+
+<Tip>
+**Use environment variables for all configuration**
+
+Never hardcode URLs, API endpoints, or credentials in your source code. Always use environment variables.
+</Tip>
+
+<Tip>
+**Keep .env.local for secrets**
+
+Use `.env.local` for local development secrets. This file should be in `.gitignore` and never committed.
+</Tip>
+
+<Tip>
+**Test production builds**
+
+Always run `npm run preview` to test production builds locally before deploying.
+</Tip>
+
+## Troubleshooting
+
+### Port Already in Use
+
+**Error**: `Port 5173 is already in use`
+
+**Solution**: 
+```bash
+# Use a different port
+vite --port 5174
+
+# Or kill the process using port 5173
+lsof -ti:5173 | xargs kill
+```
+
+### Environment Variables Not Loading
+
+**Problem**: Environment variables are `undefined`
+
+**Solution**:
+1. Ensure variables are prefixed with `VITE_`
+2. Restart the dev server after changing `.env` files
+3. Use `import.meta.env.VITE_VAR_NAME` not `process.env.VITE_VAR_NAME`
+
+### Build Fails
+
+**Error**: Build process fails with TypeScript or ESLint errors
+
+**Solution**:
+```bash
+# Check for linting errors
+npm run lint
+
+# Fix auto-fixable issues
+npm run lint -- --fix
+
+# Clear cache and reinstall
+rm -rf node_modules package-lock.json
+npm install
+```
+
+## Next Steps
+
+- [Azure AD Configuration](/configuration/azure-ad) - Set up Azure authentication
+- [Routing Configuration](/configuration/routing) - Configure application routes
+- Review the `package.json` at `~/workspace/source/package.json`

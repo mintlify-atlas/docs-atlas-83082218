@@ -1,0 +1,208 @@
+---
+title: LoginPage
+description: Basic authentication page component for simulated backend testing
+---
+
+## Overview
+
+The `LoginPage` component provides a simple authentication interface for testing backend connectivity. It simulates the authentication flow by sending a mock token to the backend and storing user credentials in localStorage.
+
+<Note>
+This component is primarily used for development and testing purposes. For production Azure AD authentication, use the `LoginMicrosoft` component instead.
+</Note>
+
+## Component Location
+
+```
+src/pages/LoginPage.jsx
+```
+
+## Full Source Code
+
+```jsx
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+
+const LoginPage = () => {
+    // useNavigate es un hook de React Router para cambiar de ruta
+    const navigate = useNavigate();
+
+    // Esta función simula la llamada al backend con el token
+    const handleLogin = async () => {
+        console.log('Simulando autenticación y llamada al backend...');
+        
+        // Simulación de la respuesta del backend
+        // Usamos el token MOCK_TOKEN_ADMIN configurado en el backend
+        const mockToken = "MOCK_TOKEN_ADMIN"; 
+        
+        try {
+            // 2. Llamada a tu backend para obtener el perfil (simula la autenticación)
+            const response = await fetch('http://localhost:3000/api/empleados/profile', {
+                method: 'GET',
+                headers: {
+                    // Enviamos el "token" simulado en el encabezado Authorization
+                    'Authorization': `Bearer ${mockToken}`
+                },
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Respuesta exitosa del backend:', data);
+                
+                //Si la conexión es exitosa, guardamos la identidad (simulación)
+                localStorage.setItem('isAuthenticated', 'true');
+                localStorage.setItem('userName', data.nombre);
+
+                //Redireccionar al usuario a la página principal
+                navigate('/home'); 
+
+            } else {
+                console.error('Error al conectar con el backend:', response.status);
+                alert('Fallo de conexión simulada. Verifica que tu backend esté corriendo.');
+            }
+        } catch (error) {
+            console.error('Error de red:', error);
+            alert('Error de red. Asegúrate que el backend esté en http://localhost:3000');
+        }
+    };
+
+    return (
+        <div style={{ padding: '20px', textAlign: 'center' }}>
+            <h2>Portal Self-Service - Login Prueba</h2>
+            <p>Simula la autenticación y hacer la conexión con el backend.</p>
+            
+            <button 
+                onClick={handleLogin}
+                style={{ padding: '10px 20px', fontSize: '16px', cursor: 'pointer' }}
+            >
+                Inicio de Sesión
+            </button>
+        </div>
+    );
+};
+
+export default LoginPage;
+```
+
+## Component Behavior
+
+### Authentication Flow
+
+<Tabs>
+  <Tab title="Step 1: User Interaction">
+    User clicks the "Inicio de Sesión" button, triggering the `handleLogin` function.
+  </Tab>
+  <Tab title="Step 2: Backend Request">
+    The component sends a GET request to `http://localhost:3000/api/empleados/profile` with a mock Bearer token in the Authorization header.
+  </Tab>
+  <Tab title="Step 3: Response Handling">
+    If successful, user data is stored in localStorage and the user is redirected to `/home`.
+  </Tab>
+  <Tab title="Step 4: Error Handling">
+    If the request fails, an alert is shown to the user with debugging information.
+  </Tab>
+</Tabs>
+
+## Hooks Used
+
+<ParamField path="useNavigate" type="hook">
+  React Router hook used for programmatic navigation. Called to redirect users to the home page after successful authentication.
+</ParamField>
+
+## State Management
+
+This component doesn't use React state. Instead, it manages authentication state through:
+
+- **localStorage.isAuthenticated**: Boolean flag indicating authentication status
+- **localStorage.userName**: Stores the user's name from the backend response
+
+## API Integration
+
+### Endpoint
+
+```
+GET http://localhost:3000/api/empleados/profile
+```
+
+### Headers
+
+```javascript
+{
+  'Authorization': 'Bearer MOCK_TOKEN_ADMIN'
+}
+```
+
+### Response Format
+
+```json
+{
+  "nombre": "Usuario Name",
+  // ... other employee data
+}
+```
+
+<Warning>
+The mock token `MOCK_TOKEN_ADMIN` is hardcoded in this component. This should never be used in production environments.
+</Warning>
+
+## Error Handling
+
+<Accordion title="Network Errors">
+Caught by the catch block and displays an alert: "Error de red. Asegúrate que el backend esté en http://localhost:3000"
+</Accordion>
+
+<Accordion title="HTTP Errors">
+Handled in the response check and displays: "Fallo de conexión simulada. Verifica que tu backend esté corriendo."
+</Accordion>
+
+## Usage Example
+
+```jsx
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import LoginPage from './pages/LoginPage';
+import HomePage from './pages/HomePage';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<LoginPage />} />
+        <Route path="/home" element={<HomePage />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+```
+
+## Styling
+
+The component uses inline styles for simplicity:
+
+- Centered layout with 20px padding
+- Button with 10px vertical and 20px horizontal padding
+- 16px font size for the button
+- Cursor pointer on button hover
+
+<Tip>
+For production applications, consider moving these inline styles to a CSS module or styled-components for better maintainability.
+</Tip>
+
+## Testing Considerations
+
+<Info>
+**Prerequisites for Testing:**
+- Backend server must be running on `http://localhost:3000`
+- Backend must have the `/api/empleados/profile` endpoint configured
+- Backend must accept the `MOCK_TOKEN_ADMIN` token
+</Info>
+
+## Migration Path
+
+When moving from this simulated login to production:
+
+1. Replace with `LoginMicrosoft` component for Azure AD integration
+2. Remove mock token usage
+3. Implement proper JWT token handling
+4. Add secure session management
+5. Remove localStorage-based authentication (use httpOnly cookies instead)

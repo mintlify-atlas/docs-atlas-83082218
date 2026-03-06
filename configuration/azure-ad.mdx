@@ -1,0 +1,277 @@
+---
+title: Azure AD Configuration
+description: Configure Azure Active Directory authentication for your Portal Self-Service application
+---
+
+The Portal Self-Service includes Azure AD integration capabilities through the Microsoft Authentication Library (MSAL). This guide covers how to configure Azure AD authentication for secure employee access.
+
+## Overview
+
+The application uses `@azure/msal-browser` and `@azure/msal-react` libraries to handle Azure AD authentication. The configuration is centralized in the `authConfig.js` file.
+
+<Note>
+The current implementation includes both a simulated authentication flow (active) and a full Azure AD integration (commented out). This documentation covers the Azure AD setup for when you're ready to enable it.
+</Note>
+
+## Prerequisites
+
+Before configuring Azure AD, ensure you have:
+
+- An Azure AD tenant
+- An app registration in Azure Portal
+- Client ID from your app registration
+- Tenant ID from your Azure AD
+- Redirect URIs configured in Azure Portal
+
+## Configuration File Structure
+
+The Azure AD configuration is located at `src/authConfig.js`:
+
+<CodeGroup>
+```javascript src/authConfig.js
+export const msalConfig = {
+  auth: {
+    clientId: "TU_ID_DE_APLICACION_CLIENTE", // Replace with your Client ID
+    authority: "https://login.microsoftonline.com/b0eb3273-4a42-49b2-be7e-f4223772674c", // Replace with your Tenant ID
+    redirectUri: "/", // Must match the redirect URI registered in Azure Portal
+  },
+  cache: {
+    cacheLocation: "sessionStorage", // Recommended for SPA
+    storeAuthStateInCookie: false,
+  }
+};
+
+export const loginRequest = { 
+  scopes: ["User.Read"],
+};
+```
+</CodeGroup>
+
+## Configuration Parameters
+
+### Authentication Settings
+
+<ParamField path="auth.clientId" type="string" required>
+  The Application (client) ID from your Azure AD app registration. Replace `"TU_ID_DE_APLICACION_CLIENTE"` with your actual client ID.
+</ParamField>
+
+<ParamField path="auth.authority" type="string" required>
+  The authentication authority URL. Format: `https://login.microsoftonline.com/{TENANT_ID}`
+  
+  Replace the tenant ID in the URL with your Azure AD tenant ID.
+</ParamField>
+
+<ParamField path="auth.redirectUri" type="string" required>
+  The URI where Azure AD will redirect after authentication. Must match exactly with the redirect URI configured in your Azure Portal app registration.
+  
+  Common values:
+  - `"/"` - Root path
+  - `window.location.origin` - Dynamic origin
+  - `"http://localhost:5173"` - Development URL
+</ParamField>
+
+### Cache Configuration
+
+<ParamField path="cache.cacheLocation" type="string" default="sessionStorage">
+  Where MSAL stores authentication tokens. Options:
+  - `"sessionStorage"` - Recommended for SPAs, data cleared when tab closes
+  - `"localStorage"` - Persists across browser sessions
+</ParamField>
+
+<ParamField path="cache.storeAuthStateInCookie" type="boolean" default={false}>
+  Whether to store authentication state in cookies. Set to `true` if you need IE11 support or have issues with browser storage.
+</ParamField>
+
+### Login Request Scopes
+
+<ParamField path="scopes" type="array" required>
+  Microsoft Graph API scopes requested during login. Common scopes:
+  - `"User.Read"` - Read user profile information
+  - `"email"` - Access user's email
+  - `"openid"` - OpenID Connect authentication
+  - `"profile"` - Access user's profile information
+</ParamField>
+
+## Setting Up Azure AD
+
+<Steps>
+  <Step title="Create App Registration">
+    1. Go to [Azure Portal](https://portal.azure.com)
+    2. Navigate to **Azure Active Directory** > **App registrations**
+    3. Click **New registration**
+    4. Enter a name for your application (e.g., "Portal Self-Service")
+    5. Select **Single-page application (SPA)** as the platform
+    6. Add your redirect URI (e.g., `http://localhost:5173` for development)
+    7. Click **Register**
+  </Step>
+
+  <Step title="Copy Configuration Values">
+    After registration, copy these values from the **Overview** page:
+    - **Application (client) ID** - This is your `clientId`
+    - **Directory (tenant) ID** - This is used in your `authority` URL
+  </Step>
+
+  <Step title="Configure Authentication">
+    1. Go to **Authentication** in the left sidebar
+    2. Under **Single-page application**, add all redirect URIs:
+       - Development: `http://localhost:5173`
+       - Production: Your production URL
+    3. Under **Implicit grant and hybrid flows**, ensure settings match your security requirements
+    4. Save changes
+  </Step>
+
+  <Step title="Set API Permissions">
+    1. Go to **API permissions** in the left sidebar
+    2. Click **Add a permission**
+    3. Select **Microsoft Graph**
+    4. Choose **Delegated permissions**
+    5. Add required permissions:
+       - `User.Read` (usually added by default)
+       - Add any additional permissions your app needs
+    6. Click **Add permissions**
+  </Step>
+
+  <Step title="Update Your Configuration">
+    Update `src/authConfig.js` with your values:
+    
+    ```javascript
+    export const msalConfig = {
+      auth: {
+        clientId: "YOUR_CLIENT_ID_HERE",
+        authority: "https://login.microsoftonline.com/YOUR_TENANT_ID_HERE",
+        redirectUri: window.location.origin,
+      },
+      cache: {
+        cacheLocation: "sessionStorage",
+        storeAuthStateInCookie: false,
+      }
+    };
+    ```
+  </Step>
+</Steps>
+
+## Integration Example
+
+The application includes a complete Azure AD integration example (currently commented out in `src/App.jsx`). Here's how it works:
+
+<CodeGroup>
+```jsx App.jsx (Azure AD Integration)
+import { MsalProvider, useIsAuthenticated, useMsal } from "@azure/msal-react";
+import { PublicClientApplication } from "@azure/msal-browser";
+import { msalConfig } from "./authConfig";
+
+const msalInstance = new PublicClientApplication(msalConfig);
+
+function App() {
+  return (
+    <MsalProvider instance={msalInstance}>
+      <Router>
+        <AppContent />
+      </Router>
+    </MsalProvider>
+  );
+}
+```
+
+```jsx Authentication Check
+function AppContent() {
+  const isAuthenticated = useIsAuthenticated();
+  const { instance } = useMsal();
+
+  const handleLogout = () => {
+    instance.logoutPopup({ 
+      postLogoutRedirectUri: window.location.origin 
+    });
+  };
+
+  if (!isAuthenticated) {
+    return <LoginMicrosoft />;
+  }
+
+  return (
+    // Your authenticated app content
+  );
+}
+```
+</CodeGroup>
+
+## Environment-Specific Configuration
+
+<Tip>
+For production deployments, use environment variables to manage sensitive configuration:
+</Tip>
+
+```javascript
+export const msalConfig = {
+  auth: {
+    clientId: import.meta.env.VITE_AZURE_CLIENT_ID,
+    authority: `https://login.microsoftonline.com/${import.meta.env.VITE_AZURE_TENANT_ID}`,
+    redirectUri: import.meta.env.VITE_REDIRECT_URI || window.location.origin,
+  },
+  cache: {
+    cacheLocation: "sessionStorage",
+    storeAuthStateInCookie: false,
+  }
+};
+```
+
+Create a `.env` file in your project root:
+
+```bash
+VITE_AZURE_CLIENT_ID=your-client-id
+VITE_AZURE_TENANT_ID=your-tenant-id
+VITE_REDIRECT_URI=http://localhost:5173
+```
+
+<Warning>
+Never commit your `.env` file with real credentials to version control. Add it to `.gitignore`.
+</Warning>
+
+## Troubleshooting
+
+### Redirect URI Mismatch
+
+**Error**: `AADSTS50011: The reply URL specified in the request does not match`
+
+**Solution**: Ensure the `redirectUri` in your `msalConfig` exactly matches one of the redirect URIs registered in Azure Portal.
+
+### Invalid Client ID
+
+**Error**: `AADSTS700016: Application with identifier was not found`
+
+**Solution**: Verify you've copied the correct Application (client) ID from Azure Portal and replaced the placeholder in `authConfig.js`.
+
+### Consent Required
+
+**Error**: `AADSTS65001: The user or administrator has not consented`
+
+**Solution**: 
+1. Go to Azure Portal > Your App Registration > API permissions
+2. Click "Grant admin consent" for your organization
+3. Or, ensure users can consent to the application
+
+## Security Best Practices
+
+<Steps>
+  <Step title="Use sessionStorage">
+    Prefer `sessionStorage` over `localStorage` for cache location to limit token lifetime to the browser session.
+  </Step>
+
+  <Step title="Implement Token Refresh">
+    MSAL automatically handles token refresh, but ensure your application handles token expiration gracefully.
+  </Step>
+
+  <Step title="Minimal Scopes">
+    Only request the Microsoft Graph scopes your application actually needs.
+  </Step>
+
+  <Step title="HTTPS in Production">
+    Always use HTTPS for production deployments. Azure AD requires secure redirect URIs in production.
+  </Step>
+</Steps>
+
+## Next Steps
+
+- [Environment Configuration](/configuration/environment) - Set up environment variables
+- [Routing Configuration](/configuration/routing) - Configure protected routes
+- Review the commented Azure AD implementation in `src/App.jsx:42-142`

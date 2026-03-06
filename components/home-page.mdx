@@ -1,0 +1,324 @@
+---
+title: HomePage
+description: Protected home page component with authentication checks and user session management
+---
+
+## Overview
+
+The `HomePage` component serves as the main landing page after successful authentication. It implements route protection by checking authentication status and displays a personalized welcome message to authenticated users.
+
+<Info>
+This component works in conjunction with `LoginPage` for simulated authentication flows. For production Azure AD flows, use it with `LoginMicrosoft` and `SelfService` components.
+</Info>
+
+## Component Location
+
+```
+src/pages/HomePage.jsx
+```
+
+## Full Source Code
+
+```jsx
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+
+const HomePage = () => {
+    const navigate = useNavigate();
+    const [userName, setUserName] = useState('');
+
+    useEffect(() => {
+        // Verifica si el usuario está "autenticado" (simulación)
+        const authenticated = localStorage.getItem('isAuthenticated');
+        const name = localStorage.getItem('userName');
+        
+        if (!authenticated) {
+            // Si no está autenticado, lo enviamos de vuelta al login
+            navigate('/');
+        } else {
+            setUserName(name || 'Usuario');
+        }
+    }, [navigate]);
+
+    const handleLogout = () => {
+        localStorage.removeItem('isAuthenticated');
+        localStorage.removeItem('userName');
+        navigate('/');
+    };
+
+    return (
+        <div style={{ padding: '20px', border: '1px solid green', margin: '20px' }}>
+            <h1>🚀 Bienvenido al Portal Self-Service, {userName}</h1>
+            <p>Has iniciado sesión exitosamente. La conexión con el backend fue verificada.</p>
+            <button onClick={handleLogout}>Cerrar Sesión (Simulado)</button>
+        </div>
+    );
+};
+
+export default HomePage;
+```
+
+## Component Features
+
+### Authentication Guard
+
+The component implements a client-side authentication guard that:
+
+1. Checks for authentication status on mount
+2. Redirects unauthenticated users to the login page
+3. Displays content only for authenticated users
+
+<Warning>
+This is a client-side authentication check using localStorage, which is not secure for production. Implement server-side session validation for real applications.
+</Warning>
+
+### User Session Display
+
+Displays personalized greeting using the stored user name from localStorage.
+
+### Logout Functionality
+
+Provides a logout mechanism that clears session data and returns to the login page.
+
+## Hooks Used
+
+<ParamField path="useState" type="React Hook">
+  Manages the `userName` state to store and display the authenticated user's name.
+  
+  **Initial State:** Empty string `''`
+</ParamField>
+
+<ParamField path="useEffect" type="React Hook">
+  Runs authentication check on component mount. Dependencies: `[navigate]`
+  
+  **Purpose:** Verify authentication status and redirect if necessary
+</ParamField>
+
+<ParamField path="useNavigate" type="React Router Hook">
+  Provides programmatic navigation for redirecting users between routes.
+</ParamField>
+
+## State Management
+
+### Component State
+
+```javascript
+const [userName, setUserName] = useState('');
+```
+
+- **userName**: Stores the display name of the authenticated user
+- **setUserName**: Updates the userName when authentication is verified
+
+### Persistent Storage
+
+The component reads from localStorage:
+
+- **isAuthenticated**: Boolean string indicating authentication status
+- **userName**: User's display name from backend response
+
+## Component Lifecycle
+
+<Tabs>
+  <Tab title="Mount">
+    1. Component renders
+    2. `useEffect` hook executes
+    3. Checks `localStorage.isAuthenticated`
+    4. If not authenticated: redirect to `/`
+    5. If authenticated: load and display `userName`
+  </Tab>
+  <Tab title="User Interaction">
+    User clicks "Cerrar Sesión" button
+    - Triggers `handleLogout` function
+    - Clears localStorage data
+    - Navigates to login page
+  </Tab>
+  <Tab title="Unmount">
+    Component cleanup (no specific cleanup needed)
+  </Tab>
+</Tabs>
+
+## Functions
+
+### handleLogout
+
+```javascript
+const handleLogout = () => {
+    localStorage.removeItem('isAuthenticated');
+    localStorage.removeItem('userName');
+    navigate('/');
+};
+```
+
+**Purpose:** Terminates the user session and returns to login
+
+**Actions:**
+1. Removes authentication flag from localStorage
+2. Removes user name from localStorage
+3. Navigates to the root route (login page)
+
+<Accordion title="Why use localStorage.removeItem instead of clear?">
+`removeItem` is more precise - it only removes specific keys rather than clearing all localStorage data, which might be used by other parts of the application.
+</Accordion>
+
+## Route Protection
+
+The authentication check in `useEffect` acts as a route guard:
+
+```javascript
+if (!authenticated) {
+    navigate('/');
+}
+```
+
+<Note>
+**Important:** This protection runs after the component mounts, so there may be a brief flash of content before redirect. Consider implementing a loading state or using a higher-order component for route protection.
+</Note>
+
+## Styling
+
+The component uses inline styles:
+
+```javascript
+style={{ padding: '20px', border: '1px solid green', margin: '20px' }}
+```
+
+- **padding**: 20px internal spacing
+- **border**: 1px solid green border (visual confirmation of successful auth)
+- **margin**: 20px external spacing
+
+<Tip>
+The green border serves as a visual indicator that the user has successfully authenticated and is viewing protected content.
+</Tip>
+
+## Usage Example
+
+### Basic Route Configuration
+
+```jsx
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import LoginPage from './pages/LoginPage';
+import HomePage from './pages/HomePage';
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<LoginPage />} />
+        <Route path="/home" element={<HomePage />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+```
+
+### With Protected Route Wrapper
+
+```jsx
+import { Navigate } from 'react-router-dom';
+
+const ProtectedRoute = ({ children }) => {
+  const isAuthenticated = localStorage.getItem('isAuthenticated');
+  return isAuthenticated ? children : <Navigate to="/" />;
+};
+
+// Usage
+<Route 
+  path="/home" 
+  element={
+    <ProtectedRoute>
+      <HomePage />
+    </ProtectedRoute>
+  } 
+/>
+```
+
+## Security Considerations
+
+<Warning>
+**Security Issues in Current Implementation:**
+
+1. **Client-side only authentication**: Can be bypassed by manually setting localStorage values
+2. **No token validation**: No verification with backend on each request
+3. **No session expiration**: Authentication persists indefinitely
+4. **localStorage vulnerabilities**: Susceptible to XSS attacks
+
+**For Production:**
+- Implement server-side session validation
+- Use httpOnly cookies for session tokens
+- Add session expiration and refresh logic
+- Validate authentication state with backend on route changes
+</Warning>
+
+## Integration with Other Components
+
+### Flow Diagram
+
+```
+LoginPage (authenticates) → HomePage (displays)
+                              ↓
+                         handleLogout()
+                              ↓
+                        LoginPage (return)
+```
+
+### Data Flow
+
+1. **LoginPage** sets `isAuthenticated` and `userName` in localStorage
+2. **HomePage** reads these values and displays personalized content
+3. **handleLogout** clears the data and returns to **LoginPage**
+
+## Improvements for Production
+
+<Accordion title="Add Loading State">
+```jsx
+const [isLoading, setIsLoading] = useState(true);
+
+useEffect(() => {
+    const authenticated = localStorage.getItem('isAuthenticated');
+    if (!authenticated) {
+        navigate('/');
+    } else {
+        setUserName(localStorage.getItem('userName') || 'Usuario');
+    }
+    setIsLoading(false);
+}, [navigate]);
+
+if (isLoading) {
+    return <div>Loading...</div>;
+}
+```
+</Accordion>
+
+<Accordion title="Backend Session Verification">
+```jsx
+useEffect(() => {
+    const verifySession = async () => {
+        try {
+            const response = await fetch('http://localhost:3000/api/auth/verify', {
+                credentials: 'include'
+            });
+            if (!response.ok) {
+                navigate('/');
+            }
+        } catch (error) {
+            navigate('/');
+        }
+    };
+    verifySession();
+}, [navigate]);
+```
+</Accordion>
+
+<Accordion title="Session Timeout">
+```jsx
+useEffect(() => {
+    const sessionTimeout = setTimeout(() => {
+        handleLogout();
+    }, 30 * 60 * 1000); // 30 minutes
+    
+    return () => clearTimeout(sessionTimeout);
+}, []);
+```
+</Accordion>

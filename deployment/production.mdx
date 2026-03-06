@@ -1,0 +1,351 @@
+---
+title: Production Deployment
+description: Build and deploy the Portal Self-Service application to production environments
+---
+
+This guide covers building, optimizing, and deploying the Portal Self-Service application to production.
+
+## Pre-Deployment Checklist
+
+Before deploying to production, ensure you have:
+
+- [ ] Configured Azure AD with production client credentials
+- [ ] Updated `redirectUri` in `authConfig.js` to match your production domain
+- [ ] Tested the application thoroughly in a staging environment
+- [ ] Reviewed and fixed all ESLint warnings
+- [ ] Verified all dependencies are up to date
+
+## Building for Production
+
+<Steps>
+  <Step title="Run linting checks">
+    Ensure your code passes all quality checks:
+    
+    ```bash
+    npm run lint
+    ```
+    
+    Fix any errors or warnings before proceeding.
+  </Step>
+
+  <Step title="Create production build">
+    Build the optimized production bundle:
+    
+    ```bash
+    npm run build
+    ```
+    
+    This command:
+    - Compiles and bundles all source files
+    - Minifies JavaScript and CSS
+    - Optimizes assets for production
+    - Generates the `dist/` folder with production-ready files
+  </Step>
+
+  <Step title="Test the production build locally">
+    Preview the production build before deploying:
+    
+    ```bash
+    npm run preview
+    ```
+    
+    This starts a local server serving the production build from the `dist/` folder.
+  </Step>
+</Steps>
+
+## Build Configuration
+
+The production build is configured in `vite.config.js`:
+
+```javascript vite.config.js
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react-swc'
+
+export default defineConfig({
+  plugins: [react()],
+})
+```
+
+### Build Output
+
+The `npm run build` command generates:
+
+```
+dist/
+├── assets/
+│   ├── index-[hash].js      # Minified JavaScript bundle
+│   └── index-[hash].css     # Minified CSS bundle
+├── vite.svg
+└── index.html               # Entry HTML file
+```
+
+<Info>
+  Vite automatically adds content hashes to filenames for cache busting. This ensures users always receive the latest version after updates.
+</Info>
+
+## Production Configuration
+
+### Azure AD Configuration
+
+Update `src/authConfig.js` with production settings:
+
+```javascript src/authConfig.js
+export const msalConfig = {
+  auth: {
+    clientId: process.env.VITE_AZURE_CLIENT_ID || "YOUR_PRODUCTION_CLIENT_ID",
+    authority: `https://login.microsoftonline.com/${process.env.VITE_AZURE_TENANT_ID}`,
+    redirectUri: "https://your-production-domain.com/", // Production URL
+  },
+  cache: {
+    cacheLocation: "sessionStorage",
+    storeAuthStateInCookie: false,
+  }
+};
+
+export const loginRequest = { 
+  scopes: ["User.Read"],
+};
+```
+
+<Warning>
+  Ensure the `redirectUri` exactly matches the redirect URI registered in your Azure AD application. Mismatches will cause authentication failures.
+</Warning>
+
+## Deployment Options
+
+### Static Hosting Platforms
+
+The application is a static single-page application (SPA) and can be deployed to various platforms:
+
+<AccordionGroup>
+  <Accordion title="Azure Static Web Apps">
+    Deploy directly to Azure:
+    
+    ```bash
+    # Install Azure CLI
+    az login
+    
+    # Create static web app
+    az staticwebapp create \
+      --name portal-selfservice \
+      --resource-group your-resource-group \
+      --source ./dist \
+      --location "East US 2"
+    ```
+    
+    Configure the app to handle SPA routing by adding a `staticwebapp.config.json` in the `dist/` folder:
+    
+    ```json
+    {
+      "navigationFallback": {
+        "rewrite": "/index.html",
+        "exclude": ["/assets/*", "*.{css,scss,js,png,gif,ico,jpg,svg}"]
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Vercel">
+    Deploy with Vercel:
+    
+    ```bash
+    # Install Vercel CLI
+    npm i -g vercel
+    
+    # Deploy
+    vercel --prod
+    ```
+    
+    Or connect your repository for automatic deployments. Vercel automatically detects Vite projects.
+  </Accordion>
+
+  <Accordion title="Netlify">
+    Deploy with Netlify:
+    
+    ```bash
+    # Install Netlify CLI
+    npm i -g netlify-cli
+    
+    # Deploy
+    netlify deploy --prod --dir=dist
+    ```
+    
+    Add a `_redirects` file to handle SPA routing:
+    
+    ```
+    /*    /index.html   200
+    ```
+  </Accordion>
+
+  <Accordion title="Traditional Web Server (Nginx)">
+    For deployment on a traditional web server like Nginx:
+    
+    1. Copy the `dist/` folder contents to your web server
+    2. Configure Nginx to handle SPA routing:
+    
+    ```nginx
+    server {
+      listen 80;
+      server_name your-domain.com;
+      root /var/www/portal-selfservice;
+      index index.html;
+      
+      location / {
+        try_files $uri $uri/ /index.html;
+      }
+      
+      # Cache static assets
+      location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Environment Variables
+
+For production deployments with environment-specific configuration:
+
+<Steps>
+  <Step title="Create environment files">
+    Create `.env.production` for production settings:
+    
+    ```bash .env.production
+    VITE_AZURE_CLIENT_ID=your_production_client_id
+    VITE_AZURE_TENANT_ID=your_production_tenant_id
+    VITE_API_URL=https://api.your-domain.com
+    ```
+  </Step>
+
+  <Step title="Access in code">
+    Access environment variables in your code:
+    
+    ```javascript
+    const clientId = import.meta.env.VITE_AZURE_CLIENT_ID;
+    const apiUrl = import.meta.env.VITE_API_URL;
+    ```
+    
+    <Note>
+      Vite only exposes variables prefixed with `VITE_` to the client bundle. This prevents accidentally exposing server-only secrets.
+    </Note>
+  </Step>
+</Steps>
+
+## Performance Optimization
+
+### Build Optimizations
+
+Vite automatically applies several optimizations:
+
+- **Code Splitting**: Automatically splits code into smaller chunks
+- **Tree Shaking**: Removes unused code from the bundle
+- **Minification**: Minifies JavaScript and CSS
+- **Asset Optimization**: Compresses and optimizes images and fonts
+
+### Additional Optimizations
+
+<Tip>
+  Consider implementing these additional optimizations:
+  
+  - Enable gzip/brotli compression on your web server
+  - Implement a CDN for static assets
+  - Add appropriate cache headers for assets
+  - Monitor bundle size and lazy load routes if needed
+</Tip>
+
+## Post-Deployment Verification
+
+After deployment, verify:
+
+<Steps>
+  <Step title="Test authentication">
+    Ensure Azure AD login flow works correctly with production credentials.
+  </Step>
+
+  <Step title="Check console for errors">
+    Open browser DevTools and verify there are no console errors.
+  </Step>
+
+  <Step title="Test all routes">
+    Navigate through all application routes to ensure routing works properly.
+  </Step>
+
+  <Step title="Verify responsive design">
+    Test on multiple devices and screen sizes.
+  </Step>
+</Steps>
+
+## Continuous Deployment
+
+Consider setting up CI/CD pipelines for automated deployments:
+
+```yaml .github/workflows/deploy.yml
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run linting
+        run: npm run lint
+        
+      - name: Build
+        run: npm run build
+        env:
+          VITE_AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          VITE_AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          
+      - name: Deploy
+        # Add your deployment step here
+        run: echo "Deploy dist/ folder"
+```
+
+## Security Considerations
+
+<Warning>
+  **Important Security Practices:**
+  
+  - Never commit production credentials to version control
+  - Use environment variables for sensitive configuration
+  - Regularly update dependencies to patch security vulnerabilities
+  - Implement proper CORS policies
+  - Use HTTPS in production
+  - Review Azure AD permissions and scopes
+</Warning>
+
+## Monitoring and Maintenance
+
+After deployment:
+
+- Monitor application performance and errors
+- Keep dependencies updated regularly
+- Review Azure AD sign-in logs
+- Set up alerts for authentication failures
+- Maintain documentation for deployment procedures
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Troubleshooting" icon="wrench" href="/deployment/troubleshooting">
+    Resolve common deployment issues
+  </Card>
+  <Card title="Development Setup" icon="code" href="/deployment/development">
+    Return to development guide
+  </Card>
+</CardGroup>

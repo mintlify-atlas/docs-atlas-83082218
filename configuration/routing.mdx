@@ -1,0 +1,523 @@
+---
+title: Routing Configuration
+description: Configure application routing and protected routes in the Portal Self-Service
+---
+
+The Portal Self-Service uses React Router DOM v7 for client-side routing. This guide covers the routing structure, protected routes, and navigation configuration.
+
+## Overview
+
+The application implements a simple two-page structure with authentication protection:
+
+- **Login Page** (`/`) - Public route for authentication
+- **Home Page** (`/home`) - Protected route requiring authentication
+
+Routing is configured in `src/App.jsx` using React Router DOM's declarative API.
+
+## Core Routing Configuration
+
+The main routing structure is defined in `src/App.jsx`:
+
+<CodeGroup>
+```jsx src/App.jsx
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import LoginPage from './pages/LoginPage.jsx';
+import HomePage from './pages/HomePage.jsx';
+
+const App = () => {
+    return (
+        <BrowserRouter>
+            <Routes>
+                {/* Public Route - Login */}
+                <Route path="/" element={<LoginPage />} />
+                
+                {/* Protected Route - Home */}
+                <Route 
+                    path="/home" 
+                    element={
+                        <ProtectedRoute>
+                            <HomePage />
+                        </ProtectedRoute>
+                    } 
+                />
+            </Routes>
+        </BrowserRouter>
+    );
+};
+
+export default App;
+```
+</CodeGroup>
+
+## Router Components
+
+### BrowserRouter
+
+The application uses `BrowserRouter` which provides clean URLs without hash fragments:
+
+<CodeGroup>
+```jsx BrowserRouter Setup
+import { BrowserRouter } from 'react-router-dom';
+
+const App = () => {
+    return (
+        <BrowserRouter>
+            {/* Routes defined here */}
+        </BrowserRouter>
+    );
+};
+```
+</CodeGroup>
+
+<Info>
+**BrowserRouter** uses the HTML5 history API to keep your UI in sync with the URL. It provides clean URLs like `/home` instead of `/#/home`.
+</Info>
+
+### Routes and Route
+
+Define routes using the `Routes` and `Route` components:
+
+<ParamField path="path" type="string" required>
+  The URL path pattern for this route. Examples:
+  - `"/"` - Root path
+  - `"/home"` - Static path
+  - `"/users/:id"` - Dynamic parameter
+  - `"/admin/*"` - Catch-all
+</ParamField>
+
+<ParamField path="element" type="ReactNode" required>
+  The React component to render when the route matches.
+</ParamField>
+
+## Protected Routes
+
+The application implements a custom `ProtectedRoute` component to restrict access to authenticated users:
+
+<CodeGroup>
+```jsx src/App.jsx
+// Protected Route Component
+const ProtectedRoute = ({ children }) => {
+    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+  
+    if (!isAuthenticated) {
+        return <Navigate to="/" replace />;
+    }
+    
+    // If authenticated, render the protected component
+    return children;
+};
+```
+</CodeGroup>
+
+### How It Works
+
+<Steps>
+  <Step title="Check Authentication">
+    The component checks `localStorage` for an `isAuthenticated` flag:
+    
+    ```javascript
+    const isAuthenticated = localStorage.getItem('isAuthenticated') === 'true';
+    ```
+  </Step>
+
+  <Step title="Redirect if Not Authenticated">
+    If the user is not authenticated, redirect to the login page:
+    
+    ```jsx
+    if (!isAuthenticated) {
+        return <Navigate to="/" replace />;
+    }
+    ```
+    
+    The `replace` prop replaces the current history entry instead of adding a new one.
+  </Step>
+
+  <Step title="Render Protected Content">
+    If authenticated, render the children (protected page):
+    
+    ```jsx
+    return children;
+    ```
+  </Step>
+</Steps>
+
+### Usage Example
+
+<CodeGroup>
+```jsx Using ProtectedRoute
+<Route 
+    path="/home" 
+    element={
+        <ProtectedRoute>
+            <HomePage />
+        </ProtectedRoute>
+    } 
+/>
+```
+</CodeGroup>
+
+## Navigation Between Routes
+
+React Router DOM provides several methods for programmatic navigation:
+
+### Using useNavigate Hook
+
+The primary way to navigate programmatically in the application:
+
+<CodeGroup>
+```jsx src/pages/LoginPage.jsx
+import { useNavigate } from 'react-router-dom';
+
+const LoginPage = () => {
+    const navigate = useNavigate();
+
+    const handleLogin = async () => {
+        // Authentication logic...
+        
+        if (response.ok) {
+            // Store authentication state
+            localStorage.setItem('isAuthenticated', 'true');
+            localStorage.setItem('userName', data.nombre);
+            
+            // Navigate to home page
+            navigate('/home');
+        }
+    };
+
+    return (
+        // Component JSX
+    );
+};
+```
+</CodeGroup>
+
+<CodeGroup>
+```jsx src/pages/HomePage.jsx
+import { useNavigate } from 'react-router-dom';
+
+const HomePage = () => {
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        // Clear authentication state
+        localStorage.removeItem('isAuthenticated');
+        localStorage.removeItem('userName');
+        
+        // Navigate back to login
+        navigate('/');
+    };
+
+    return (
+        // Component JSX
+    );
+};
+```
+</CodeGroup>
+
+### Navigate Component
+
+For declarative redirects:
+
+<CodeGroup>
+```jsx Declarative Navigation
+import { Navigate } from 'react-router-dom';
+
+// Redirect immediately
+<Navigate to="/" replace />
+
+// Conditional redirect
+{!isAuthenticated && <Navigate to="/" replace />}
+```
+</CodeGroup>
+
+### Link Component
+
+For clickable navigation links (not currently used but available):
+
+<CodeGroup>
+```jsx Using Link
+import { Link } from 'react-router-dom';
+
+<Link to="/home">Go to Home</Link>
+<Link to="/" replace>Back to Login</Link>
+```
+</CodeGroup>
+
+## Authentication Flow
+
+The current authentication flow in the application:
+
+<Steps>
+  <Step title="User Visits Application">
+    User lands on `/` (LoginPage)
+  </Step>
+
+  <Step title="User Clicks Login">
+    `handleLogin` function is called in `LoginPage.jsx:9`
+    
+    ```javascript
+    const handleLogin = async () => {
+        const mockToken = "MOCK_TOKEN_ADMIN";
+        const response = await fetch('http://localhost:3000/api/empleados/profile', {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${mockToken}`
+            },
+            credentials: 'include'
+        });
+        // ...
+    }
+    ```
+  </Step>
+
+  <Step title="Backend Validates Token">
+    Backend verifies the token and returns user profile data
+  </Step>
+
+  <Step title="Store Authentication State">
+    On successful authentication, store state in localStorage:
+    
+    ```javascript
+    localStorage.setItem('isAuthenticated', 'true');
+    localStorage.setItem('userName', data.nombre);
+    ```
+  </Step>
+
+  <Step title="Navigate to Home">
+    Redirect user to protected home page:
+    
+    ```javascript
+    navigate('/home');
+    ```
+  </Step>
+
+  <Step title="ProtectedRoute Verifies">
+    `ProtectedRoute` checks authentication before rendering HomePage
+  </Step>
+</Steps>
+
+## Adding New Routes
+
+To add new pages to the application:
+
+<Steps>
+  <Step title="Create Page Component">
+    Create a new page component in `src/pages/`:
+    
+    ```jsx src/pages/ProfilePage.jsx
+    import React from 'react';
+    
+    const ProfilePage = () => {
+        return (
+            <div>
+                <h1>User Profile</h1>
+                {/* Profile content */}
+            </div>
+        );
+    };
+    
+    export default ProfilePage;
+    ```
+  </Step>
+
+  <Step title="Import the Component">
+    Import the new page in `src/App.jsx`:
+    
+    ```jsx
+    import ProfilePage from './pages/ProfilePage.jsx';
+    ```
+  </Step>
+
+  <Step title="Add Route">
+    Add a new route definition:
+    
+    ```jsx
+    <Route 
+        path="/profile" 
+        element={
+            <ProtectedRoute>
+                <ProfilePage />
+            </ProtectedRoute>
+        } 
+    />
+    ```
+  </Step>
+
+  <Step title="Add Navigation">
+    Add links to navigate to the new page:
+    
+    ```jsx
+    import { Link } from 'react-router-dom';
+    
+    <Link to="/profile">View Profile</Link>
+    ```
+  </Step>
+</Steps>
+
+## Advanced Routing Patterns
+
+### Dynamic Routes
+
+<CodeGroup>
+```jsx Dynamic Route Parameters
+// Define route with parameter
+<Route path="/employees/:id" element={
+    <ProtectedRoute>
+        <EmployeeDetailPage />
+    </ProtectedRoute>
+} />
+
+// Access parameter in component
+import { useParams } from 'react-router-dom';
+
+const EmployeeDetailPage = () => {
+    const { id } = useParams();
+    
+    return <div>Employee ID: {id}</div>;
+};
+```
+</CodeGroup>
+
+### Nested Routes
+
+<CodeGroup>
+```jsx Nested Routes
+<Route path="/dashboard" element={
+    <ProtectedRoute>
+        <DashboardLayout />
+    </ProtectedRoute>
+}>
+    <Route index element={<DashboardHome />} />
+    <Route path="stats" element={<Stats />} />
+    <Route path="reports" element={<Reports />} />
+</Route>
+```
+</CodeGroup>
+
+### Catch-All Routes
+
+<CodeGroup>
+```jsx 404 Not Found
+<Routes>
+    <Route path="/" element={<LoginPage />} />
+    <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+    
+    {/* Catch all unmatched routes */}
+    <Route path="*" element={<NotFoundPage />} />
+</Routes>
+```
+</CodeGroup>
+
+## Azure AD Integration (Future)
+
+The application includes commented-out code for Azure AD routing integration. Here's the pattern:
+
+<CodeGroup>
+```jsx Azure AD Routing Pattern
+import { MsalProvider, useIsAuthenticated } from "@azure/msal-react";
+import { PublicClientApplication } from "@azure/msal-browser";
+import { msalConfig } from "./authConfig";
+
+const msalInstance = new PublicClientApplication(msalConfig);
+
+function AppContent() {
+    const isAuthenticated = useIsAuthenticated();
+
+    if (!isAuthenticated) {
+        return <LoginMicrosoft />;
+    }
+
+    return (
+        <Routes>
+            <Route path="/" element={<Empleados />} />
+            <Route path="/clinicas" element={<Clinicas />} />
+            <Route path="/estados" element={<Estados />} />
+            <Route path="/sso" element={<SSO />} />
+            <Route path="/selfservice" element={<SelfService />} />
+        </Routes>
+    );
+}
+
+function App() {
+    return (
+        <MsalProvider instance={msalInstance}>
+            <Router>
+                <AppContent />
+            </Router>
+        </MsalProvider>
+    );
+}
+```
+</CodeGroup>
+
+See the commented code in `src/App.jsx:42-142` for the complete implementation.
+
+## Route Guards Best Practices
+
+<Tip>
+**Centralize Authentication Logic**
+
+Keep authentication checks in a single `ProtectedRoute` component for consistency across all protected pages.
+</Tip>
+
+<Tip>
+**Store Minimal Data**
+
+Only store essential authentication data in localStorage. For sensitive operations, always verify with the backend.
+</Tip>
+
+<Tip>
+**Handle Redirects Properly**
+
+Use the `replace` prop on `<Navigate>` to prevent users from using the back button to return to protected pages after logout.
+</Tip>
+
+<Warning>
+**Security Note**: The current authentication implementation uses localStorage for demo purposes. In production, consider using more secure methods like HTTP-only cookies or implementing proper session management with your backend.
+</Warning>
+
+## Troubleshooting
+
+### Redirect Loop
+
+**Problem**: Page keeps redirecting in a loop
+
+**Solution**: Check that your authentication state is being set correctly and that the `ProtectedRoute` logic doesn't create circular redirects.
+
+```jsx
+// Bad - can cause loops
+if (!isAuthenticated) {
+    navigate('/'); // Don't use navigate in render
+}
+
+// Good - use Navigate component
+if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
+}
+```
+
+### Route Not Matching
+
+**Problem**: Route doesn't match even with correct URL
+
+**Solution**: 
+1. Check route path spelling
+2. Ensure routes are inside `<Routes>` component
+3. Check order of routes (specific routes before catch-all)
+4. Verify `BrowserRouter` is wrapping your routes
+
+### Protected Route Not Working
+
+**Problem**: Users can access protected pages without authentication
+
+**Solution**: Verify that:
+1. `ProtectedRoute` is wrapped around the route element
+2. Authentication state is being checked correctly
+3. localStorage keys match between login and protection logic
+
+## Next Steps
+
+- [Azure AD Configuration](/configuration/azure-ad) - Implement Azure authentication
+- [Environment Configuration](/configuration/environment) - Set up environment variables
+- Review the routing implementation in `src/App.jsx`

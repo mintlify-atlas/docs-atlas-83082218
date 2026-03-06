@@ -1,0 +1,543 @@
+---
+title: Troubleshooting
+description: Solutions to common issues when developing and deploying the Portal Self-Service application
+---
+
+This guide provides solutions to common problems you may encounter during development and deployment.
+
+## Development Issues
+
+### Server Won't Start
+
+<AccordionGroup>
+  <Accordion title="Port Already in Use">
+    **Problem**: Error message `Port 5173 is already in use`
+    
+    **Solution**:
+    
+    ```bash
+    # Option 1: Kill the process using the port
+    # On Linux/Mac:
+    lsof -ti:5173 | xargs kill -9
+    
+    # On Windows:
+    netstat -ano | findstr :5173
+    taskkill /PID <PID> /F
+    
+    # Option 2: Use a different port
+    npm run dev -- --port 3000
+    ```
+  </Accordion>
+
+  <Accordion title="Module Not Found Errors">
+    **Problem**: Import errors or "Cannot find module" messages
+    
+    **Solution**:
+    
+    ```bash
+    # Clear node_modules and reinstall
+    rm -rf node_modules package-lock.json
+    npm install
+    
+    # Or if using npm cache
+    npm cache clean --force
+    npm install
+    ```
+    
+    <Tip>
+      If issues persist, verify that you're using Node.js version 18 or higher:
+      ```bash
+      node --version
+      ```
+    </Tip>
+  </Accordion>
+
+  <Accordion title="Hot Module Replacement Not Working">
+    **Problem**: Changes don't reflect in the browser automatically
+    
+    **Solutions**:
+    
+    1. Check if you're editing the correct file in the `src/` directory
+    2. Clear browser cache and hard reload (Ctrl+Shift+R)
+    3. Restart the development server:
+    
+    ```bash
+    # Stop the server (Ctrl+C) and restart
+    npm run dev
+    ```
+    
+    4. Check for syntax errors in your code that may prevent HMR
+  </Accordion>
+</AccordionGroup>
+
+## Build Issues
+
+### Build Failures
+
+<AccordionGroup>
+  <Accordion title="ESLint Errors Blocking Build">
+    **Problem**: Build fails due to linting errors
+    
+    **Solution**:
+    
+    ```bash
+    # Run lint to see all errors
+    npm run lint
+    
+    # Fix automatically fixable issues
+    npm run lint -- --fix
+    ```
+    
+    Common ESLint errors:
+    
+    - **Unused variables**: Remove or prefix with underscore `_unusedVar`
+    - **Missing dependencies in useEffect**: Add to dependency array
+    - **Prop validation**: Ensure all required props are passed
+    
+    The project enforces this rule in `eslint.config.js`:
+    
+    ```javascript
+    rules: {
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+    }
+    ```
+    
+    Variables starting with uppercase or underscore are allowed to be unused.
+  </Accordion>
+
+  <Accordion title="Out of Memory Errors">
+    **Problem**: Build fails with "JavaScript heap out of memory"
+    
+    **Solution**:
+    
+    ```bash
+    # Increase Node.js memory limit
+    NODE_OPTIONS="--max-old-space-size=4096" npm run build
+    ```
+    
+    Or add to `package.json`:
+    
+    ```json
+    "scripts": {
+      "build": "NODE_OPTIONS='--max-old-space-size=4096' vite build"
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Build Output Too Large">
+    **Problem**: Warning about large bundle size
+    
+    **Solution**:
+    
+    1. Analyze the bundle:
+    
+    ```bash
+    npm install --save-dev rollup-plugin-visualizer
+    ```
+    
+    Add to `vite.config.js`:
+    
+    ```javascript
+    import { visualizer } from 'rollup-plugin-visualizer';
+    
+    export default defineConfig({
+      plugins: [
+        react(),
+        visualizer({ open: true })
+      ],
+    })
+    ```
+    
+    2. Implement code splitting for large routes:
+    
+    ```javascript
+    // Use React lazy loading
+    import { lazy, Suspense } from 'react';
+    
+    const HomePage = lazy(() => import('./pages/HomePage'));
+    const LoginPage = lazy(() => import('./pages/LoginPage'));
+    
+    // Wrap in Suspense
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomePage />
+    </Suspense>
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Azure AD Authentication Issues
+
+### Login Failures
+
+<AccordionGroup>
+  <Accordion title="Redirect URI Mismatch">
+    **Problem**: Error message `AADSTS50011: The reply URL specified in the request does not match`
+    
+    **Solution**:
+    
+    1. Verify the `redirectUri` in `src/authConfig.js` matches exactly:
+    
+    ```javascript
+    export const msalConfig = {
+      auth: {
+        clientId: "YOUR_CLIENT_ID",
+        authority: "https://login.microsoftonline.com/YOUR_TENANT_ID",
+        redirectUri: "/", // Or "https://your-domain.com/" for production
+      },
+      // ...
+    };
+    ```
+    
+    2. In Azure Portal, go to:
+       - Azure Active Directory → App registrations → Your app
+       - Authentication → Platform configurations → Single-page application
+       - Add or verify the redirect URI
+    
+    <Warning>
+      The redirect URI must match exactly, including the protocol (http/https), domain, port, and path.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="Invalid Client ID or Tenant ID">
+    **Problem**: Error message `AADSTS700016: Application with identifier was not found`
+    
+    **Solution**:
+    
+    1. Verify your client ID and tenant ID in `src/authConfig.js`:
+    
+    ```javascript
+    // Find these values in Azure Portal:
+    // Client ID: App registrations → Your app → Overview → Application (client) ID
+    // Tenant ID: Azure Active Directory → Overview → Tenant ID
+    
+    export const msalConfig = {
+      auth: {
+        clientId: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        authority: "https://login.microsoftonline.com/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        redirectUri: "/",
+      },
+      // ...
+    };
+    ```
+    
+    2. Ensure there are no extra spaces or quotes in the IDs
+  </Accordion>
+
+  <Accordion title="Insufficient Permissions">
+    **Problem**: Error message `AADSTS65001: The user or administrator has not consented`
+    
+    **Solution**:
+    
+    1. In Azure Portal, grant admin consent:
+       - App registrations → Your app → API permissions
+       - Click "Grant admin consent for [Tenant]"
+    
+    2. Or request consent programmatically:
+    
+    ```javascript
+    export const loginRequest = { 
+      scopes: ["User.Read"],
+      prompt: "consent" // Forces consent screen
+    };
+    ```
+  </Accordion>
+
+  <Accordion title="CORS Errors During Authentication">
+    **Problem**: CORS errors when communicating with Azure AD
+    
+    **Solution**:
+    
+    1. Verify you're using `sessionStorage` for caching:
+    
+    ```javascript
+    export const msalConfig = {
+      cache: {
+        cacheLocation: "sessionStorage", // Required for SPA
+        storeAuthStateInCookie: false,
+      }
+    };
+    ```
+    
+    2. Ensure your app is registered as a "Single-page application" in Azure Portal
+    
+    3. Check browser console for specific CORS errors and verify redirect URIs
+  </Accordion>
+</AccordionGroup>
+
+## Deployment Issues
+
+### Static Hosting Problems
+
+<AccordionGroup>
+  <Accordion title="404 Errors on Page Refresh">
+    **Problem**: Direct navigation to routes works, but refreshing causes 404
+    
+    **Solution**: Configure your hosting platform to handle SPA routing:
+    
+    **Azure Static Web Apps**:
+    ```json staticwebapp.config.json
+    {
+      "navigationFallback": {
+        "rewrite": "/index.html",
+        "exclude": ["/assets/*", "*.{css,js,png,gif,ico,jpg,svg}"]
+      }
+    }
+    ```
+    
+    **Netlify**:
+    ```_redirects
+    /*    /index.html   200
+    ```
+    
+    **Vercel**:
+    ```json vercel.json
+    {
+      "rewrites": [
+        { "source": "/(.*)", "destination": "/" }
+      ]
+    }
+    ```
+    
+    **Nginx**:
+    ```nginx
+    location / {
+      try_files $uri $uri/ /index.html;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Assets Not Loading (404 for CSS/JS)">
+    **Problem**: HTML loads but CSS and JavaScript files return 404
+    
+    **Solution**:
+    
+    1. Verify the `dist/` folder contains the assets:
+    
+    ```bash
+    ls -la dist/assets/
+    ```
+    
+    2. Check if base path is configured correctly in `vite.config.js`:
+    
+    ```javascript
+    export default defineConfig({
+      base: '/', // Or '/your-subdirectory/' if deployed to a subdirectory
+      plugins: [react()],
+    })
+    ```
+    
+    3. Rebuild after configuration changes:
+    
+    ```bash
+    npm run build
+    ```
+  </Accordion>
+
+  <Accordion title="Environment Variables Not Working">
+    **Problem**: Environment variables are `undefined` in production
+    
+    **Solution**:
+    
+    1. Ensure variables are prefixed with `VITE_`:
+    
+    ```bash
+    # ✓ Correct
+    VITE_AZURE_CLIENT_ID=xxx
+    
+    # ✗ Wrong - won't be exposed
+    AZURE_CLIENT_ID=xxx
+    ```
+    
+    2. For platform-specific configuration:
+    
+    **Vercel/Netlify**: Set environment variables in the dashboard
+    
+    **Azure Static Web Apps**: Add to GitHub secrets and workflow:
+    
+    ```yaml
+    - name: Build
+      run: npm run build
+      env:
+        VITE_AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+    ```
+    
+    3. Verify build-time injection:
+    
+    ```javascript
+    // This is replaced at build time
+    console.log(import.meta.env.VITE_AZURE_CLIENT_ID);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Styling Issues
+
+<AccordionGroup>
+  <Accordion title="Tailwind Classes Not Applied">
+    **Problem**: Tailwind CSS classes don't have any effect
+    
+    **Solution**:
+    
+    1. Ensure Tailwind directives are in `src/index.css`:
+    
+    ```css
+    @tailwind base;
+    @tailwind components;
+    @tailwind utilities;
+    ```
+    
+    2. Verify `index.css` is imported in `src/main.jsx`:
+    
+    ```javascript
+    import './index.css'
+    ```
+    
+    3. Check if your files are in the Tailwind content configuration:
+    
+    ```javascript tailwind.config.js
+    export default {
+      content: [
+        "./index.html",
+        "./src/**/*.{js,ts,jsx,tsx}", // Must match your file structure
+      ],
+    }
+    ```
+    
+    4. Restart the dev server after configuration changes
+  </Accordion>
+
+  <Accordion title="Styles Differ Between Dev and Production">
+    **Problem**: Styles look correct in development but broken in production
+    
+    **Solution**:
+    
+    1. Test production build locally:
+    
+    ```bash
+    npm run build
+    npm run preview
+    ```
+    
+    2. Check for dynamic class names that may be purged:
+    
+    ```javascript
+    // ✗ Bad - classes may be purged
+    const color = isActive ? 'text-blue-500' : 'text-gray-500';
+    <div className={color}>
+    
+    // ✓ Good - full class names are preserved
+    <div className={isActive ? 'text-blue-500' : 'text-gray-500'}>
+    ```
+    
+    3. Add dynamic classes to safelist in `tailwind.config.js` if needed:
+    
+    ```javascript
+    export default {
+      safelist: [
+        'text-blue-500',
+        'text-gray-500',
+      ],
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Performance Issues
+
+<AccordionGroup>
+  <Accordion title="Slow Initial Load Time">
+    **Problem**: Application takes too long to load initially
+    
+    **Solutions**:
+    
+    1. Implement code splitting:
+    
+    ```javascript
+    import { lazy, Suspense } from 'react';
+    
+    const HomePage = lazy(() => import('./pages/HomePage'));
+    ```
+    
+    2. Check bundle size:
+    
+    ```bash
+    npm run build
+    # Look for "chunk size" warnings
+    ```
+    
+    3. Enable compression on your server (gzip/brotli)
+    
+    4. Use a CDN for static assets
+  </Accordion>
+
+  <Accordion title="Memory Leaks">
+    **Problem**: Application becomes slow over time or browser tab crashes
+    
+    **Solutions**:
+    
+    1. Clean up event listeners and subscriptions:
+    
+    ```javascript
+    useEffect(() => {
+      const handler = () => { /* ... */ };
+      window.addEventListener('resize', handler);
+      
+      // Cleanup
+      return () => {
+        window.removeEventListener('resize', handler);
+      };
+    }, []);
+    ```
+    
+    2. Cancel pending requests on unmount
+    
+    3. Use React DevTools Profiler to identify problematic components
+  </Accordion>
+</AccordionGroup>
+
+## Getting Additional Help
+
+If you're still experiencing issues:
+
+<Steps>
+  <Step title="Check browser console">
+    Open DevTools (F12) and check for errors in the Console tab.
+  </Step>
+
+  <Step title="Review network requests">
+    Check the Network tab for failed requests or slow resources.
+  </Step>
+
+  <Step title="Enable verbose logging">
+    Add logging to debug specific issues:
+    
+    ```javascript
+    console.log('Config:', msalConfig);
+    console.log('Environment:', import.meta.env);
+    ```
+  </Step>
+
+  <Step title="Check dependency versions">
+    Ensure compatible versions:
+    
+    ```bash
+    npm list @azure/msal-browser @azure/msal-react react react-dom
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  For Azure AD-specific issues, check the Azure Portal sign-in logs:
+  Azure Active Directory → Enterprise applications → Your app → Sign-in logs
+</Note>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Development Setup" icon="code" href="/deployment/development">
+    Return to development guide
+  </Card>
+  <Card title="Production Deployment" icon="rocket" href="/deployment/production">
+    Review deployment guide
+  </Card>
+</CardGroup>

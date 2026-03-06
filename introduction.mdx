@@ -1,0 +1,126 @@
+---
+title: Introduction
+description: Learn about the Portal Self-Service application, a React-based employee management system with Azure AD authentication
+---
+
+## What is Portal Self-Service?
+
+Portal Self-Service is a modern, React-based employee management and self-service portal designed to streamline employee operations and provide secure access to organizational resources. Built with React 19 and Vite, it offers a fast, efficient, and user-friendly interface for both employees and administrators.
+
+## Who is it for?
+
+This portal is designed for two primary audiences:
+
+<CardGroup cols={2}>
+  <Card title="Employees" icon="user">
+    Access your personal information, manage your profile, and utilize self-service features for common HR tasks.
+  </Card>
+  <Card title="Administrators" icon="users-gear">
+    Manage employee records, track system usage, and maintain organizational data with secure authentication.
+  </Card>
+</CardGroup>
+
+## Key Features
+
+### Secure Authentication
+
+The portal supports multiple authentication methods:
+
+- **Azure AD Integration**: Enterprise-grade authentication using Microsoft Azure Active Directory with MSAL (Microsoft Authentication Library)
+- **Mock Authentication**: Development mode with simulated login for testing and development purposes
+- **Protected Routes**: Client-side route protection ensuring only authenticated users can access sensitive areas
+
+<Note>
+  The application includes both production-ready Azure AD authentication and a development mock authentication system for testing purposes.
+</Note>
+
+### Modern Tech Stack
+
+Built with cutting-edge technologies for optimal performance:
+
+- **React 19**: Latest React version with improved performance and developer experience
+- **Vite**: Lightning-fast build tool with Hot Module Replacement (HMR)
+- **React Router v7**: Modern routing with protected route support
+- **TailwindCSS**: Utility-first CSS framework for responsive design
+- **MSAL Browser & React**: Official Microsoft authentication libraries
+
+### Employee Management
+
+Comprehensive employee data management capabilities:
+
+- View and update employee profiles
+- Track clinic assignments and organizational structure
+- Monitor SSO login activity and authentication events
+- Self-service portal for employee-initiated actions
+
+### Developer-Friendly
+
+Designed with developers in mind:
+
+- **Fast Development**: Vite's HMR provides instant feedback during development
+- **ESLint Integration**: Code quality enforcement with React-specific rules
+- **Component-Based Architecture**: Modular design for easy maintenance and scaling
+- **Clear Separation of Concerns**: Distinct pages, components, and configuration files
+
+## Architecture Overview
+
+The application follows a clean, component-based architecture:
+
+```
+src/
+├── pages/              # Route-level components
+│   ├── LoginPage.jsx   # Authentication entry point
+│   └── HomePage.jsx    # Protected home dashboard
+├── componentes/        # Reusable UI components
+│   ├── LoginMicrosoft.jsx
+│   └── SelfService.jsx
+├── authConfig.js       # Azure AD configuration
+├── App.jsx             # Root component with routing
+└── main.jsx            # Application entry point
+```
+
+<Info>
+  The application uses a `ProtectedRoute` component wrapper to ensure authentication checks before rendering protected pages.
+</Info>
+
+## Authentication Flow
+
+The portal implements a straightforward authentication flow:
+
+<Steps>
+  <Step title="User Access">
+    User navigates to the portal and lands on the LoginPage
+  </Step>
+  <Step title="Authentication">
+    User authenticates either via Azure AD popup or mock authentication (development)
+  </Step>
+  <Step title="Token Storage">
+    Authentication token and user information are stored in localStorage/sessionStorage
+  </Step>
+  <Step title="Route Protection">
+    Protected routes verify authentication status before allowing access
+  </Step>
+  <Step title="Backend Verification">
+    Application validates user credentials with backend API at `http://localhost:3000`
+  </Step>
+</Steps>
+
+## Backend Integration
+
+The portal integrates with a backend API for:
+
+- **Profile Verification**: Validates user credentials via `/api/empleados/profile`
+- **Employee Lookup**: Fetches employee data by email via `/api/empleados/email/:email`
+- **SSO Tracking**: Records login events via `/api/sso/actualizar-login`
+
+<Warning>
+  The backend API is expected to run on `http://localhost:3000` for mock authentication and `http://localhost:5000` for Azure AD integration. Ensure your backend is running before starting the frontend.
+</Warning>
+
+## What's Next?
+
+Ready to get started? Follow our [Quickstart Guide](/quickstart) to set up the portal locally and begin development.
+
+<Tip>
+  For production deployment, ensure you configure your Azure AD application with the correct Client ID and Tenant ID in `authConfig.js`.
+</Tip>

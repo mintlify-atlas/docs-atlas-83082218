@@ -1,0 +1,377 @@
+---
+title: 'Employee Profile'
+description: 'Display and manage employee profile information in the self-service portal'
+icon: 'user'
+---
+
+The employee profile feature allows authenticated users to view their personal information retrieved from the backend database. This feature is implemented in the `SelfService` component and integrates with Azure AD authentication.
+
+## Overview
+
+The employee profile displays comprehensive information about the logged-in employee, including:
+
+- Full name
+- Email address
+- DNI (National ID)
+- Phone number
+- Assigned clinic
+- Employment status
+- Date of hire
+
+<Info>
+  The profile data is fetched from the backend API using the authenticated user's email address.
+</Info>
+
+## Implementation
+
+The employee profile is implemented in the `SelfService` component:
+
+```jsx SelfService.jsx
+import { useMsal } from "@azure/msal-react";
+import { useEffect, useState } from "react";
+
+function SelfService() {
+  const { accounts } = useMsal();
+  const [userData, setUserData] = useState(null);
+
+  useEffect(() => {
+    if (accounts.length > 0) {
+      const userEmail = accounts[0].username;
+
+      fetch(`http://localhost:5000/api/empleados/email/${userEmail}`)
+        .then((res) => {
+          if (!res.ok) {
+            throw new Error(`Error HTTP: ${res.status}`);
+          }
+          return res.json();
+        })
+        .then((data) => setUserData(data))
+        .catch((err) => {
+          console.error("Error al obtener datos del usuario:", err);
+          setUserData({ error: "No se pudo cargar la información." });
+        });
+    }
+  }, [accounts]);
+
+  if (!userData) {
+    return (
+      <div className="mt-10 text-center text-gray-600">
+        Cargando información...
+      </div>
+    );
+  }
+
+  if (userData.error) {
+    return (
+      <div className="mt-10 text-center text-red-600">
+        {userData.error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-lg p-6 mx-auto mt-10 bg-white shadow-md rounded-xl">
+      <h2 className="mb-4 text-2xl font-bold text-center">Mi Perfil</h2>
+      <div className="space-y-2">
+        <p><strong>Nombre:</strong> {userData.nombre}</p>
+        <p><strong>Correo:</strong> {userData.correo}</p>
+        <p><strong>DNI:</strong> {userData.DNI}</p>
+        <p><strong>Teléfono:</strong> {userData.telefono}</p>
+        <p><strong>Clínica:</strong> {userData.clinica}</p>
+        <p><strong>Estado:</strong> {userData.estado}</p>
+        <p>
+          <strong>Fecha de ingreso:</strong>{" "}
+          {new Date(userData.fecha_ingreso).toLocaleDateString()}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default SelfService;
+```
+
+## How It Works
+
+<Steps>
+  <Step title="Get User Email">
+    Extract the authenticated user's email from the MSAL accounts array
+  </Step>
+  
+  <Step title="Fetch Profile Data">
+    Make an API call to retrieve employee information using the email
+  </Step>
+  
+  <Step title="Handle Loading State">
+    Display a loading indicator while fetching data
+  </Step>
+  
+  <Step title="Handle Errors">
+    Show error message if the API call fails
+  </Step>
+  
+  <Step title="Display Profile">
+    Render the employee's profile information in a formatted card
+  </Step>
+</Steps>
+
+## Component States
+
+The component manages three distinct states:
+
+<CardGroup cols={3}>
+  <Card title="Loading" icon="spinner">
+    Displayed while fetching data from the API
+  </Card>
+  <Card title="Error" icon="triangle-exclamation">
+    Shown when the API request fails
+  </Card>
+  <Card title="Success" icon="circle-check">
+    Displays the complete profile information
+  </Card>
+</CardGroup>
+
+### Loading State
+
+While data is being fetched, the component displays a loading message:
+
+```jsx
+if (!userData) {
+  return (
+    <div className="mt-10 text-center text-gray-600">
+      Cargando información...
+    </div>
+  );
+}
+```
+
+### Error State
+
+If the API call fails, an error message is displayed:
+
+```jsx
+if (userData.error) {
+  return (
+    <div className="mt-10 text-center text-red-600">
+      {userData.error}
+    </div>
+  );
+}
+```
+
+### Success State
+
+When data is successfully loaded, the profile is displayed in a styled card with proper formatting.
+
+## API Integration
+
+### Endpoint
+
+The component fetches employee data from the following endpoint:
+
+```
+GET /api/empleados/email/{email}
+```
+
+### Request Example
+
+```javascript
+fetch(`http://localhost:5000/api/empleados/email/john.doe@example.com`)
+  .then((res) => res.json())
+  .then((data) => console.log(data));
+```
+
+### Expected Response
+
+The API should return a JSON object with the following structure:
+
+```json
+{
+  "id_empleado": 123,
+  "nombre": "John Doe",
+  "correo": "john.doe@example.com",
+  "DNI": "12345678",
+  "telefono": "+1234567890",
+  "clinica": "Main Clinic",
+  "estado": "Active",
+  "fecha_ingreso": "2024-01-15T00:00:00.000Z"
+}
+```
+
+<Note>
+  The `fecha_ingreso` field is automatically formatted using JavaScript's `toLocaleDateString()` method to display in the user's locale format.
+</Note>
+
+## Styling and UI
+
+The component uses Tailwind CSS utility classes for styling:
+
+<Accordion title="Key Style Classes">
+  - `max-w-lg`: Limits the card width for better readability
+  - `mx-auto`: Centers the card horizontally
+  - `shadow-md`: Adds a medium shadow for depth
+  - `rounded-xl`: Creates rounded corners
+  - `space-y-2`: Adds consistent vertical spacing between elements
+</Accordion>
+
+## Data Display Format
+
+Each field is displayed in a consistent format:
+
+```jsx
+<p><strong>Field Label:</strong> {fieldValue}</p>
+```
+
+Special formatting is applied to:
+
+- **Dates**: Converted to local date string format
+- **All text**: Displayed as-is from the API response
+
+## Error Handling
+
+The component implements comprehensive error handling:
+
+```javascript
+.catch((err) => {
+  console.error("Error al obtener datos del usuario:", err);
+  setUserData({ error: "No se pudo cargar la información." });
+});
+```
+
+<Warning>
+  **Common Error Scenarios:**
+  
+  - Backend server is not running
+  - Network connectivity issues
+  - Employee email not found in database
+  - Invalid API response format
+</Warning>
+
+## Integration with Authentication
+
+The component relies on MSAL authentication:
+
+```javascript
+const { accounts } = useMsal();
+const userEmail = accounts[0].username;
+```
+
+<Info>
+  The component assumes that the user is already authenticated. It accesses the first account in the MSAL accounts array to retrieve the email.
+</Info>
+
+## Customization Options
+
+### Adding New Fields
+
+To display additional employee information:
+
+1. Ensure the backend API returns the new field
+2. Add a new line in the profile display:
+
+```jsx
+<p><strong>New Field:</strong> {userData.newField}</p>
+```
+
+### Changing Layout
+
+You can modify the layout by adjusting Tailwind classes:
+
+```jsx
+<div className="grid grid-cols-2 gap-4">
+  <div>
+    <p><strong>Nombre:</strong> {userData.nombre}</p>
+  </div>
+  <div>
+    <p><strong>Correo:</strong> {userData.correo}</p>
+  </div>
+</div>
+```
+
+### Adding Profile Actions
+
+You can add buttons for profile actions like editing or downloading:
+
+```jsx
+<div className="mt-6 space-x-2">
+  <button className="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700">
+    Edit Profile
+  </button>
+  <button className="px-4 py-2 text-gray-700 bg-gray-200 rounded hover:bg-gray-300">
+    Download PDF
+  </button>
+</div>
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Loading States" icon="hourglass">
+    Always show loading indicators during async operations
+  </Card>
+  <Card title="Error Handling" icon="shield-halved">
+    Provide clear error messages to users
+  </Card>
+  <Card title="Data Validation" icon="check">
+    Validate API responses before rendering
+  </Card>
+  <Card title="Responsive Design" icon="mobile">
+    Ensure profile displays well on all screen sizes
+  </Card>
+</CardGroup>
+
+## Testing the Component
+
+<Steps>
+  <Step title="Backend Setup">
+    Ensure your backend API is running on `http://localhost:5000`
+  </Step>
+  
+  <Step title="Authentication">
+    Log in using Azure AD authentication
+  </Step>
+  
+  <Step title="Navigate to Profile">
+    Navigate to the `/selfservice` route
+  </Step>
+  
+  <Step title="Verify Data">
+    Confirm that all profile fields display correctly
+  </Step>
+</Steps>
+
+<Tip>
+  Use browser DevTools Network tab to inspect the API request and response for debugging purposes.
+</Tip>
+
+## Mock Data for Testing
+
+For development, you can use mock data by modifying the useEffect:
+
+```javascript
+useEffect(() => {
+  // Mock data for testing
+  const mockData = {
+    nombre: "Test User",
+    correo: "test@example.com",
+    DNI: "12345678",
+    telefono: "+1234567890",
+    clinica: "Test Clinic",
+    estado: "Active",
+    fecha_ingreso: new Date().toISOString()
+  };
+  
+  setTimeout(() => setUserData(mockData), 1000);
+}, []);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="lock" href="/features/authentication">
+    Learn about the authentication system
+  </Card>
+  <Card title="Protected Routes" icon="shield-halved" href="/features/protected-routes">
+    Understand how routes are protected
+  </Card>
+</CardGroup>

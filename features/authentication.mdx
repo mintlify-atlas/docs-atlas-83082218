@@ -1,0 +1,360 @@
+---
+title: 'Authentication'
+description: 'Learn how to implement authentication in the Portal Self-Service application using both mock tokens and Azure AD integration'
+icon: 'lock'
+---
+
+The Portal Self-Service application supports two authentication approaches: a mock token-based system for development/testing and Azure AD (Microsoft Entra ID) authentication for production use.
+
+## Authentication Approaches
+
+The application provides flexibility in authentication methods:
+
+<CardGroup cols={2}>
+  <Card title="Mock Authentication" icon="flask">
+    Simple token-based auth for local development and testing
+  </Card>
+  <Card title="Azure AD" icon="microsoft">
+    Enterprise SSO integration with Microsoft Entra ID
+  </Card>
+</CardGroup>
+
+## Mock Token Authentication
+
+The mock authentication flow is designed for development environments where you want to test the application without setting up Azure AD.
+
+### How It Works
+
+<Steps>
+  <Step title="User Clicks Login">
+    The user clicks the login button on the `LoginPage` component
+  </Step>
+  
+  <Step title="Backend Verification">
+    The application sends a request to the backend with a mock token in the Authorization header
+  </Step>
+  
+  <Step title="Profile Retrieval">
+    If successful, the backend returns the user's profile data
+  </Step>
+  
+  <Step title="Local Storage">
+    Authentication state and user information are stored in localStorage
+  </Step>
+  
+  <Step title="Navigation">
+    User is redirected to the home page
+  </Step>
+</Steps>
+
+### Implementation
+
+The mock authentication is implemented in the `LoginPage` component:
+
+```jsx LoginPage.jsx
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+
+const LoginPage = () => {
+    const navigate = useNavigate();
+
+    const handleLogin = async () => {
+        console.log('Simulando autenticación y llamada al backend...');
+        
+        // Mock token configured in the backend
+        const mockToken = "MOCK_TOKEN_ADMIN"; 
+        
+        try {
+            // Call backend to get profile
+            const response = await fetch('http://localhost:3000/api/empleados/profile', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${mockToken}`
+                },
+                credentials: 'include'
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Respuesta exitosa del backend:', data);
+                
+                // Store authentication state
+                localStorage.setItem('isAuthenticated', 'true');
+                localStorage.setItem('userName', data.nombre);
+
+                // Redirect to home page
+                navigate('/home'); 
+            } else {
+                console.error('Error al conectar con el backend:', response.status);
+                alert('Fallo de conexión simulada. Verifica que tu backend esté corriendo.');
+            }
+        } catch (error) {
+            console.error('Error de red:', error);
+            alert('Error de red. Asegúrate que el backend esté en http://localhost:3000');
+        }
+    };
+
+    return (
+        <div style={{ padding: '20px', textAlign: 'center' }}>
+            <h2>Portal Self-Service - Login Prueba</h2>
+            <p>Simula la autenticación y hacer la conexión con el backend.</p>
+            
+            <button 
+                onClick={handleLogin}
+                style={{ padding: '10px 20px', fontSize: '16px', cursor: 'pointer' }}
+            >
+                Inicio de Sesión
+            </button>
+        </div>
+    );
+};
+
+export default LoginPage;
+```
+
+<Note>
+  The mock token `MOCK_TOKEN_ADMIN` must be configured in your backend to accept this token for development purposes.
+</Note>
+
+### API Endpoint
+
+The authentication flow calls the following endpoint:
+
+```
+GET /api/empleados/profile
+Headers: 
+  Authorization: Bearer MOCK_TOKEN_ADMIN
+  
+Response:
+{
+  "nombre": "John Doe",
+  "correo": "john.doe@example.com",
+  "DNI": "12345678",
+  // ... other profile fields
+}
+```
+
+## Azure AD Authentication
+
+For production environments, the application integrates with Azure AD using the Microsoft Authentication Library (MSAL).
+
+### Configuration
+
+First, configure your Azure AD settings in `authConfig.js`:
+
+```javascript authConfig.js
+export const msalConfig = {
+  auth: {
+    clientId: "TU_ID_DE_APLICACION_CLIENTE", // Replace with your Client ID
+    authority: "https://login.microsoftonline.com/YOUR_TENANT_ID", // Replace with your Tenant ID
+    redirectUri: "/", // Must match registered redirect URI
+  },
+  cache: {
+    cacheLocation: "sessionStorage", // Recommended for SPAs
+    storeAuthStateInCookie: false,
+  }
+};
+
+export const loginRequest = { 
+  scopes: ["User.Read"],
+};
+```
+
+<Warning>
+  Never commit your actual Client ID and Tenant ID to version control. Use environment variables instead.
+</Warning>
+
+### Azure AD Login Flow
+
+The Azure AD authentication is implemented in the `LoginMicrosoft` component:
+
+```jsx LoginMicrosoft.jsx
+import { useMsal } from "@azure/msal-react";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
+function LoginMicrosoft() {
+  const { instance, accounts } = useMsal();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Auto-redirect if already logged in
+    if (accounts.length > 0) {
+      navigate("/selfservice");
+    }
+  }, [accounts, navigate]);
+
+  const handleLogin = async () => {
+    try {
+      // Open Microsoft login popup
+      const response = await instance.loginPopup({
+        scopes: ["user.read", "email", "openid", "profile"],
+        prompt: "select_account",
+      });
+
+      const account = response.account;
+      const email = account.username;
+      const nombreCompleto = account.name;
+
+      // Fetch employee data from backend
+      const empleadoResponse = await fetch(
+        `http://localhost:5000/api/empleados/email/${email}`
+      );
+      const empleadoData = await empleadoResponse.json();
+
+      // Update last login timestamp
+      if (empleadoData?.id_empleado) {
+        await fetch("http://localhost:5000/api/sso/actualizar-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id_empleado: empleadoData.id_empleado }),
+        });
+      }
+
+      // Store user information
+      localStorage.setItem("usuario_email", email);
+      localStorage.setItem("usuario_nombre", nombreCompleto);
+
+      navigate("/selfservice");
+    } catch (error) {
+      console.error("Error en login:", error);
+    }
+  };
+
+  const handleLogout = () => {
+    instance.setActiveAccount(null);
+    localStorage.removeItem("usuario_email");
+    localStorage.removeItem("usuario_nombre");
+    navigate("/");
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center h-screen bg-gray-50">
+      <div className="w-full max-w-md p-5 text-center bg-white shadow-md rounded-xl">
+        <h1 className="mb-6 text-2xl font-bold text-gray-700">
+          Sistema de Gestión de Empleados
+        </h1>
+        {accounts.length === 0 ? (
+          <>
+            <p className="mb-4 text-gray-600">
+              Inicia sesión con tu correo de ELEOS
+            </p>
+            <button
+              onClick={handleLogin}
+              className="px-6 py-3 text-white transition bg-blue-600 rounded-lg hover:bg-blue-700"
+            >
+              Log In
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="mb-4 text-gray-600">
+              Sesión activa como:
+              <br />
+              <strong>{accounts[0].name}</strong>
+            </p>
+            <button
+              onClick={handleLogout}
+              className="px-6 py-3 text-white transition bg-red-600 rounded-lg hover:bg-red-700"
+            >
+              Log Out
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default LoginMicrosoft;
+```
+
+### Required Scopes
+
+The Azure AD login requests the following Microsoft Graph scopes:
+
+<Accordion title="Scope Descriptions">
+  - **user.read**: Read the signed-in user's profile
+  - **email**: Access the user's email address
+  - **openid**: Sign users in (basic OpenID Connect)
+  - **profile**: Access the user's basic profile information
+</Accordion>
+
+### Integration with Backend
+
+After Azure AD authentication, the application:
+
+1. Retrieves the user's email from the Azure AD account
+2. Fetches employee data from the backend using the email
+3. Updates the last login timestamp in the database
+4. Stores user information in localStorage
+
+```javascript
+// Fetch employee by email
+GET /api/empleados/email/{email}
+
+// Update login timestamp
+POST /api/sso/actualizar-login
+Body: { "id_empleado": 123 }
+```
+
+## Logout Flow
+
+<CodeGroup>
+
+```javascript Mock Authentication
+const handleLogout = () => {
+    localStorage.removeItem('isAuthenticated');
+    localStorage.removeItem('userName');
+    navigate('/');
+};
+```
+
+```javascript Azure AD
+const handleLogout = () => {
+    instance.setActiveAccount(null);
+    localStorage.removeItem("usuario_email");
+    localStorage.removeItem("usuario_nombre");
+    navigate("/");
+};
+```
+
+</CodeGroup>
+
+## Security Considerations
+
+<Warning>
+  **Important Security Notes:**
+  
+  - Mock authentication should NEVER be used in production
+  - Always validate tokens on the backend
+  - Use HTTPS in production environments
+  - Implement proper session management and token refresh
+  - Store sensitive configuration in environment variables
+</Warning>
+
+<Info>
+  The mock authentication approach stores the authentication state in localStorage, which persists across browser sessions. For production, consider using more secure storage mechanisms.
+</Info>
+
+## Switching Between Authentication Methods
+
+The application code includes both implementations. To switch between them:
+
+1. **Mock Auth**: Use the current active implementation in `src/App.jsx` (lines 1-40)
+2. **Azure AD**: Uncomment the commented code in `src/App.jsx` (lines 43-142)
+
+<Tip>
+  Use environment variables to dynamically switch between authentication methods based on the deployment environment.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Protected Routes" icon="shield-halved" href="/features/protected-routes">
+    Learn how to secure routes with authentication
+  </Card>
+  <Card title="Employee Profile" icon="user" href="/features/employee-profile">
+    Display authenticated user's profile information
+  </Card>
+</CardGroup>
